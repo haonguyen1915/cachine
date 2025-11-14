@@ -5,7 +5,11 @@ description = "cache engine"
 authors = [
     { name = "haonguyen", email = "vanhao1915@gmail.com" }
 ]
-readme = "README.md"
+license = "MIT"  # Replace with your actual license
+readme = "README.md"  # Ensure this matches your project's README file
+packages = [
+    { include = "polycrud" }
+]
 requires-python = ">=3.10"
 dependencies = [
 ]
