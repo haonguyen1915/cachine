@@ -1,0 +1,115 @@
+from __future__ import annotations
+
+from typing import Any, Optional
+
+
+class RedisClient:
+    """Thin wrapper around redis-py client to centralize setup and API use.
+
+    This wrapper exists to avoid hard dependencies at import time and to
+    provide a consistent surface area for the higher-level RedisCache.
+    """
+
+    def __init__(
+        self,
+        *,
+        host: str = "localhost",
+        port: int = 6379,
+        db: int = 0,
+        password: Optional[str] = None,
+        ssl: bool = False,
+        decode_responses: bool = False,
+    ) -> None:
+        try:
+            import redis
+        except Exception as e:  # pragma: no cover
+            raise RuntimeError(
+                "redis package not installed. Please install redis (pip install redis)."
+            ) from e
+
+        self._client = redis.Redis(
+            host=host,
+            port=port,
+            db=db,
+            password=password,
+            ssl=ssl,
+            decode_responses=decode_responses,
+        )
+
+    # Basic ops
+    def get(self, name: str) -> Optional[bytes]:
+        return self._client.get(name)
+
+    def set(self, name: str, value: Any, *, ex: Optional[int] = None, px: Optional[int] = None) -> bool:
+        return bool(self._client.set(name, value, ex=ex, px=px))
+
+    def delete(self, name: str) -> int:
+        return int(self._client.delete(name))
+
+    def exists(self, name: str) -> int:
+        return int(self._client.exists(name))
+
+    # TTL ops
+    def ttl(self, name: str) -> int:
+        return int(self._client.ttl(name))
+
+    def expire(self, name: str, seconds: int) -> int:
+        return int(self._client.expire(name, seconds))
+
+    def expireat(self, name: str, timestamp: int) -> int:
+        return int(self._client.expireat(name, timestamp))
+
+    def pexpire(self, name: str, ms: int) -> int:
+        return int(self._client.pexpire(name, ms))
+
+    def persist(self, name: str) -> int:
+        return int(self._client.persist(name))
+
+    # Counters
+    def incrby(self, name: str, delta: int) -> int:
+        return int(self._client.incrby(name, delta))
+
+    # Scripting
+    def eval(self, script: str, numkeys: int, *keys_and_args: Any) -> Any:
+        return self._client.eval(script, numkeys, *keys_and_args)
+
+    # Touch/ping/close
+    def touch(self, name: str) -> int:
+        # touch returns 1 if the key exists, otherwise 0
+        try:
+            return int(self._client.touch(name))
+        except Exception:  # pragma: no cover - not all versions support touch
+            return 1 if self.exists(name) else 0
+
+    # Sets (for tag indexing)
+    def sadd(self, name: str, *values: Any) -> int:
+        return int(self._client.sadd(name, *values))
+
+    def smembers(self, name: str) -> set:
+        return set(self._client.smembers(name))
+
+    # Scanning and bulk ops
+    def scan_iter(self, match: str, count: int | None = None):
+        if count is None:
+            return self._client.scan_iter(match=match)
+        return self._client.scan_iter(match=match, count=count)
+
+    def delete_many(self, *names: str) -> int:
+        if not names:
+            return 0
+        return int(self._client.delete(*names))
+
+    def flushdb(self) -> None:
+        self._client.flushdb()
+
+    def ping(self) -> bool:
+        try:
+            return bool(self._client.ping())
+        except Exception:  # pragma: no cover
+            return False
+
+    def close(self) -> None:
+        try:
+            self._client.close()
+        except Exception:  # pragma: no cover
+            pass
