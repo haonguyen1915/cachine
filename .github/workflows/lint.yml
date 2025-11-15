@@ -2,9 +2,9 @@ name: Lint
 
 on:
   push:
-    branches: ["**"]
+    branches: [ develop, master, 'release/**' ]
   pull_request:
-    branches: ["**"]
+    types: [opened, reopened, synchronize, ready_for_review]
 
 jobs:
   lint:

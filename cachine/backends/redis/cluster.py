@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from .sync import RedisCache
-import releaser
+
 
 class RedisClusterCache(RedisCache):
     """Redis-backed cache configured for Redis Cluster.
