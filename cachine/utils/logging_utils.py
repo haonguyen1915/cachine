@@ -6,8 +6,8 @@ from collections.abc import Iterable
 from typing import Optional
 
 try:  # Optional dependency for colored output
-    from colorama import Fore, Style  # type: ignore  # pylint: disable=import-error
-    from colorama import init as colorama_init  # type: ignore  # pylint: disable=import-error
+    from colorama import Fore, Style  # pylint: disable=import-error
+    from colorama import init as colorama_init  # pylint: disable=import-error
 
     colorama_init(autoreset=True)
 except Exception:  # pragma: no cover - graceful degradation

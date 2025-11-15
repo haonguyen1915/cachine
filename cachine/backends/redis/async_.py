@@ -20,6 +20,7 @@ class AsyncRedisClient:
         ssl (bool): Whether to use TLS.
         decode_responses (bool): If True, decodes responses to strings.
     """
+
     def __init__(
         self,
         *,

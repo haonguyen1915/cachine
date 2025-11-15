@@ -9,6 +9,7 @@ from cachine import cached
 
 try:
     import pytest_asyncio  # type: ignore  # noqa: F401
+
     HAS_ASYNCIO = True
 except Exception:  # pragma: no cover
     HAS_ASYNCIO = False
@@ -65,7 +66,7 @@ def test_redis_sync_cached_hit_latency_improvement(redis_sync_cache) -> None:  #
         assert cached_slow(1) == 2
     cached_avg = (time.perf_counter() - t1) / N
 
-    print(f"Redis cached avg: {cached_avg*1e3:.3f} ms vs baseline {baseline_avg*1e3:.3f} ms")
+    print(f"Redis cached avg: {cached_avg * 1e3:.3f} ms vs baseline {baseline_avg * 1e3:.3f} ms")
     assert cached_avg < baseline_avg * 0.5
 
 
@@ -118,5 +119,5 @@ async def test_redis_async_cached_hit_latency_improvement(redis_async_cache) -> 
         assert await cached_slow(1) == 2
     cached_avg = (time.perf_counter() - t1) / N
 
-    print(f"Redis async cached avg: {cached_avg*1e3:.3f} ms vs baseline {baseline_avg*1e3:.3f} ms")
+    print(f"Redis async cached avg: {cached_avg * 1e3:.3f} ms vs baseline {baseline_avg * 1e3:.3f} ms")
     assert cached_avg < baseline_avg * 0.5

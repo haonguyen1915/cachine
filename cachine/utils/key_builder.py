@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 _logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ def default_key_builder(func_name: str, *args: Any, **kwargs: Any) -> str:
     return ":".join(parts)
 
 
-def template_key_builder(template: str):
+def template_key_builder(template: str) -> Callable[..., str]:
     """Create a template-based key builder.
 
     The returned builder supports Python's ``str.format`` syntax and can access:

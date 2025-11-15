@@ -1,4 +1,7 @@
+# ruff: noqa: I001
 from __future__ import annotations
+
+# pylint: disable=protected-access
 
 import base64
 import hashlib
@@ -44,9 +47,7 @@ class EncryptionMiddleware(BaseMiddleware):
         try:
             from cryptography.fernet import Fernet
         except ImportError as e:  # pragma: no cover
-            raise RuntimeError(
-                "cryptography package not installed. Please install it: pip install cryptography"
-            ) from e
+            raise RuntimeError("cryptography package not installed. Please install it: pip install cryptography") from e
 
         # Convert string key to Fernet-compatible key using SHA-256
         key_bytes = key.encode("utf-8")

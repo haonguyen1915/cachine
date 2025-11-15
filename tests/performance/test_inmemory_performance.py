@@ -5,7 +5,8 @@ import time
 
 import pytest
 
-from cachine import InMemoryCache, cached
+from cachine import InMemoryCache
+from cachine.decorators import cached
 
 
 def _truthy(v: str | None) -> bool:
@@ -62,7 +63,7 @@ def test_cached_decorator_hit_latency_improvement() -> None:
         assert cached_slow(1) == 2
     cached_avg = (time.perf_counter() - t1) / N
 
-    print(f"baseline avg: {baseline_avg*1e3:.3f} ms, cached avg: {cached_avg*1e3:.3f} ms")
+    print(f"baseline avg: {baseline_avg * 1e3:.3f} ms, cached avg: {cached_avg * 1e3:.3f} ms")
 
     # Cached hits should be significantly faster than computing slow()
     assert cached_avg < baseline_avg * 0.5
@@ -83,4 +84,3 @@ def test_inmemory_eviction_set_throughput() -> None:
     # Ensure size cap is respected indirectly by existence checks
     survivors = sum(1 for i in range(over) if cache.get(f"k{i}") is not None)
     assert survivors <= max_size
-

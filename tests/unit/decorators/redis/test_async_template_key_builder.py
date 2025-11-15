@@ -19,4 +19,3 @@ async def test_async_template_key_builder_redis(redis_async_cache):  # type: ign
     assert p["id"] == 11
     expected_key = f"{get_post.__module__}.{get_post.__qualname__}:pid=11|v:rav1"
     assert await cache.exists(expected_key)
-

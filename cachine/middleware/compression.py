@@ -1,4 +1,7 @@
+# ruff: noqa: I001
 from __future__ import annotations
+
+# pylint: disable=protected-access
 
 import gzip
 import inspect

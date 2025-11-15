@@ -43,8 +43,4 @@ def test_json_vs_pickle_roundtrip_perf() -> None:
         assert obj["c"].endswith("x")
     pickle_elapsed = time.perf_counter() - t1
 
-    print(
-        f"JSON roundtrip: {N/json_elapsed:,.0f} ops/s; "
-        f"Pickle roundtrip: {N/pickle_elapsed:,.0f} ops/s (N={N})"
-    )
-
+    print(f"JSON roundtrip: {N / json_elapsed:,.0f} ops/s; " f"Pickle roundtrip: {N / pickle_elapsed:,.0f} ops/s (N={N})")

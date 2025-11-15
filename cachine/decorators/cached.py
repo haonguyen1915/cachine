@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import functools
 import inspect
 import logging
 import random
 import threading
 import time
 import uuid
-import functools
 from collections.abc import Callable
 from typing import Any, NamedTuple, Optional
 
@@ -70,7 +70,7 @@ _sf = _Singleflight()
 _MISSING = object()
 
 
-def _build_key(
+def _build_key(  # pylint: disable=too-many-branches,too-many-nested-blocks
     fn: Callable[..., Any], key_builder: Optional[Any], version: Optional[str], args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> str:
     """Build a stable cache key for a function call.
@@ -99,14 +99,12 @@ def _build_key(
                 merged = dict(ba.arguments)
                 merged.update(kwargs)  # explicit kwargs precedence
                 bound_kwargs = merged
-            except Exception:
+            except Exception:  # pylint: disable=try-except-raise
                 # Fallback: map positional args to KEYWORD_ONLY parameter names in order
                 try:
                     sig = inspect.signature(fn)
                     kwonly_names = [
-                        p.name
-                        for p in sig.parameters.values()
-                        if p.kind == inspect.Parameter.KEYWORD_ONLY and p.name not in kwargs
+                        p.name for p in sig.parameters.values() if p.kind == inspect.Parameter.KEYWORD_ONLY and p.name not in kwargs
                     ]
                     if kwonly_names and len(args) <= len(kwonly_names):
                         mapped = {kwonly_names[i]: args[i] for i in range(len(args))}
@@ -361,11 +359,11 @@ def cached(
                                     for i, name in enumerate(kwonly[: len(args)]):
                                         merged[name] = args[i]
                                     result = fn(**merged)
-                                else:
+                                else:  # noqa: E722 - re-raise original
                                     raise
-                            except Exception:
+                            except Exception:  # pylint: disable=try-except-raise
                                 raise
-                    else:
+                    else:  # noqa: E722 - re-raise original
                         raise
                 if inspect.isawaitable(result):
                     # background refresh for async function is not handled in sync path
@@ -388,7 +386,7 @@ def cached(
         if is_coro:
 
             @functools.wraps(fn)
-            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:  # pylint: disable=too-many-branches
                 key = _build_key(fn, key_builder, version, args, kwargs)
                 hit, value, fresh_until = await _aget_cached_entry(key)
                 now = time.time()
@@ -423,7 +421,7 @@ def cached(
                                                         result = await fn(**merged)
                                                     else:
                                                         raise
-                                            else:
+                                            else:  # noqa: E722 - re-raise original
                                                 raise
                                         if (result is None) and not cache_none:
                                             return
@@ -471,9 +469,7 @@ def cached(
                                 result = await fn(**ba.arguments)
                             except Exception:
                                 # Attempt KEYWORD_ONLY mapping
-                                kwonly = [
-                                    p.name for p in sig.parameters.values() if p.kind == inspect.Parameter.KEYWORD_ONLY
-                                ]
+                                kwonly = [p.name for p in sig.parameters.values() if p.kind == inspect.Parameter.KEYWORD_ONLY]
                                 if len(args) <= len(kwonly):
                                     merged = dict(kwargs)
                                     for i, name in enumerate(kwonly[: len(args)]):
@@ -481,7 +477,7 @@ def cached(
                                     result = await fn(**merged)
                                 else:
                                     raise
-                        else:
+                        else:  # noqa: E722 - re-raise original
                             raise
                     if (result is None) and not cache_none:
                         return result

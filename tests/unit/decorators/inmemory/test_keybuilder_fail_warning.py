@@ -28,4 +28,3 @@ def test_key_builder_failure_logs_warning_and_falls_back(caplog):
     # Ensure at least one warning was logged about key_builder failure
     warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
     assert any("key_builder" in r.msg for r in warnings)
-

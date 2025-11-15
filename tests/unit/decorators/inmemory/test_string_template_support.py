@@ -53,7 +53,7 @@ def test_key_builder_template_kwonly_called_positionally_ok():
     calls = {"n": 0}
 
     @cached(cache=cache, ttl=60, key_builder="uid={0}")
-    def fetch_user(uid: int, a:int) -> dict:
+    def fetch_user(uid: int, a: int) -> dict:
         calls["n"] += 1
         return {"id": uid, "a": a}
 

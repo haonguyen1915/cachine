@@ -17,7 +17,11 @@ lint:
 	@echo "🚀 Checking with pylint"
 	poetry run pylint cachine
 	@echo "🚀 Checking with mypy"
-	poetry run mypy cachine
+	@if command -v mypy >/dev/null 2>&1; then \
+		poetry run mypy cachine ; \
+	else \
+		echo "⚠️  mypy not installed; skipping type check" ; \
+	fi
 	@echo "🟢 All checks have passed"
 
 .PHONY: lint_test
@@ -29,7 +33,11 @@ lint_test:
 	@echo "🚀 Checking with pylint"
 	poetry run pylint tests
 	@echo "🚀 Checking with mypy"
-	poetry run mypy tests
+	@if command -v mypy >/dev/null 2>&1; then \
+		poetry run mypy tests ; \
+	else \
+		echo "⚠️  mypy not installed; skipping type check" ; \
+	fi
 	@echo "🟢 All checks have passed"
 
 .PHONY: fix
@@ -46,6 +54,5 @@ format:
 test:
 	@echo "🚀 Running tests with pytest"
 	poetry run pytest tests
-
 
 

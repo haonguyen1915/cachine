@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from cachine import InMemoryCache
-from cachine import cached
+from cachine import InMemoryCache, cached
 from cachine.utils.key_builder import template_key_builder
 
 
