@@ -8,42 +8,35 @@ from .sync import RedisCache
 class RedisClusterCache(RedisCache):
     """Redis-backed cache configured for Redis Cluster.
 
-    This class wraps a ``redis.cluster.RedisCluster`` client and injects it into
-    the base :class:`~cachine.backends.redis.sync.RedisCache`, providing the same
-    caching API (``get``, ``set``, ``ttl``, ``persist``, ``incr``/``decr``,
-    tag invalidation, etc.) with cluster-aware connectivity.
+    Wraps a ``redis.cluster.RedisCluster`` client and injects it into the base
+    :class:`cachine.backends.redis.sync.RedisCache` with cluster-aware connectivity.
 
-    Parameters
-    - nodes: list of startup node dictionaries, each with ``{"host": str, "port": int}``.
-      Example: ``[{"host": "localhost", "port": 7000}, {"host": "localhost", "port": 7001}]``.
-    - password: optional password used by the cluster.
-    - ssl: whether to use TLS.
-    - namespace: optional key prefix applied to all keys (e.g., ``"myapp:"``).
-    - serializer: default serializer to use when calls do not provide a per-call serializer
-      (e.g., :class:`~cachine.serializers.JSONSerializer`, :class:`~cachine.serializers.MsgPackSerializer`).
+    Args:
+        nodes (list[dict[str, Any]]): Startup node dicts with ``{"host": str, "port": int}``.
+        username (str | None): Username for ACL-enabled Redis.
+        password (str | None): Optional password used by the cluster.
+        ssl (bool): Whether to use TLS.
+        namespace (str | None): Optional key prefix (e.g., ``"myapp:"``).
+        serializer (Any | None): Default serializer when per-call serializer is not provided.
 
-    Notes
-    - Requires ``redis>=4`` with cluster support enabled.
-    - Keys are automatically distributed across hash slots by Redis. The cache uses
-      single-key operations and avoids multi-key commands that would violate hash-slot
-      constraints. Tag indices are stored as per-tag sets under
-      ``f"{namespace}tag::${tag}"``; invalidation iterates and deletes member keys individually.
-    - ``clear()`` with a namespace performs a SCAN across cluster nodes via the client’s
-      iterator and deletes matching keys. This can be expensive on large keyspaces—use with care.
-      ``dangerously_clear_all=True`` will issue a ``FLUSHDB`` on the selected database for each node;
-      do not use in production unless you understand the impact.
+    Notes:
+        - Requires ``redis>=4`` with cluster support.
+        - Only single-key operations are used to avoid cross-slot issues; tag indices
+          are stored as per-tag sets under ``f"{namespace}tag::{tag}"``.
+        - ``clear()`` iterates keys via SCAN and can be expensive on large keyspaces.
+          ``dangerously_clear_all=True`` issues ``FLUSHDB``; use with care.
 
-    Example
-    >>> from cachine.backends.redis.cluster import RedisClusterCache
-    >>> from cachine.serializers import JSONSerializer
-    >>> cache = RedisClusterCache(
-    ...     nodes=[{"host": "localhost", "port": 7000}, {"host": "localhost", "port": 7001}, {"host": "localhost", "port": 7002}],
-    ...     namespace="myapp",
-    ...     serializer=JSONSerializer(),
-    ... )
-    >>> cache.set("k", {"v": 1}, ttl=60)
-    >>> cache.get("k")
-    {'v': 1}
+    Examples:
+        >>> from cachine.backends.redis.cluster import RedisClusterCache
+        >>> from cachine.serializers import JSONSerializer
+        >>> cache = RedisClusterCache(
+        ...     nodes=[{"host": "localhost", "port": 7000}, {"host": "localhost", "port": 7001}],
+        ...     namespace="myapp",
+        ...     serializer=JSONSerializer(),
+        ... )
+        >>> cache.set("k", {"v": 1}, ttl=60)
+        >>> cache.get("k")
+        {'v': 1}
     """
 
     def __init__(

@@ -15,6 +15,15 @@ _logger = logging.getLogger(__name__)
 
 
 class KeyContext(NamedTuple):
+    """Context passed to user key builders.
+
+    Attributes:
+        module (str): Module name containing the function.
+        qualname (str): Qualified function name (may include class).
+        full_name (str): Fully qualified path ``module.qualname``.
+        version (str | None): Decorator version string, if provided.
+    """
+
     module: str
     qualname: str
     full_name: str
@@ -27,6 +36,15 @@ class _Singleflight:
         self._events: dict[str, threading.Event] = {}
 
     def acquire(self, key: str) -> tuple[bool, threading.Event]:
+        """Acquire leader/follower role for a key.
+
+        Args:
+            key (str): Singleflight group key.
+
+        Returns:
+            tuple[bool, threading.Event]: ``(is_leader, event)`` where followers
+            can wait on ``event`` for leader completion.
+        """
         with self._lock:
             ev = self._events.get(key)
             if ev is None:
@@ -36,6 +54,11 @@ class _Singleflight:
             return False, ev  # follower
 
     def release(self, key: str) -> None:
+        """Signal completion for a key group and release waiters.
+
+        Args:
+            key (str): Singleflight group key.
+        """
         with self._lock:
             ev = self._events.pop(key, None)
         if ev is not None:
@@ -49,6 +72,18 @@ _MISSING = object()
 def _build_key(
     fn: Callable[..., Any], key_builder: Optional[Callable[..., str]], version: Optional[str], args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> str:
+    """Build a stable cache key for a function call.
+
+    Args:
+        fn (Callable[..., Any]): Wrapped function.
+        key_builder (Callable[..., str] | None): Optional custom key builder.
+        version (str | None): Optional version string to append.
+        args (tuple[Any, ...]): Positional arguments.
+        kwargs (dict[str, Any]): Keyword arguments.
+
+    Returns:
+        str: Cache key string.
+    """
     if key_builder is not None:
         module = fn.__module__
         qualname = fn.__qualname__ if hasattr(fn, "__qualname__") else fn.__name__
@@ -113,7 +148,19 @@ def _build_key(
 def _compute_ttls(
     ttl: Optional[int | float], jitter: Optional[int], stale_ttl: Optional[int]
 ) -> tuple[Optional[int], Optional[int], Optional[float]]:
-    """Return (store_ttl, fresh_ttl, fresh_until_ts)"""
+    """Compute storage and freshness TTLS.
+
+    Args:
+        ttl (int | float | None): Base freshness TTL in seconds.
+        jitter (int | None): Optional max random jitter seconds added to ``ttl``.
+        stale_ttl (int | None): Additional stale-while-revalidate window.
+
+    Returns:
+        tuple[Optional[int], Optional[int], Optional[float]]: A tuple of
+        ``(store_ttl, fresh_ttl, fresh_until_ts)`` where ``store_ttl`` is the
+        value stored in the backend, ``fresh_ttl`` is the freshness window, and
+        ``fresh_until_ts`` is a UNIX timestamp when the value becomes stale.
+    """
     if ttl is None:
         return None, None, None
     fresh = int(ttl)
@@ -138,48 +185,40 @@ def cached(
     tags: Optional[Callable[..., list[str]] | list[str]] = None,
     tags_from_result: Optional[Callable[[Any], list[str]]] = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-    """Cache-aside decorator with stale-while-revalidate, tags, and singleflight.
+    """Cache-aside decorator with SWR, tags, and singleflight.
 
-    Use this decorator to transparently cache function results using a provided cache.
-    It supports both sync functions (e.g., with `InMemoryCache` or sync `RedisCache`) and
-    async functions (with `AsyncRedisCache`).
+    Transparently caches function results using a provided cache. Works with both
+    sync and async callables.
 
-    Parameters
-    - cache: Cache instance that implements the documented interface (sync or async).
-    - ttl: Base freshness time in seconds. During this period the value is considered fresh.
-    - jitter: Optional max additional seconds randomly added to ttl to stagger refreshes.
-    - key_builder: Optional callable to build the cache key from function args/kwargs.
-      Defaults to a stable key: "module.qualname:args|kwargs".
-    - condition: Optional predicate applied to the function result; cache only if True.
-    - version: Optional version string to append to the key to bust old entries.
-    - cache_none: Whether to cache None results. Defaults to False.
-    - stale_ttl: Additional window (seconds) after ttl to serve stale data while a
-      background refresh is triggered. Stored TTL = ttl(+jitter) + stale_ttl.
-    - singleflight: Deduplicate concurrent identical calls so only one computation runs,
-      and others wait for the result to be cached.
-    - tags: Static list[str] or callable(args, kwargs)->list[str] to attach tags to the entry.
-      Tags enable targeted invalidation via `cache.invalidate_tags([...])`.
-    - tags_from_result: Callable(result)->list[str] to derive tags from the computed result.
+    Args:
+        cache (Any): Cache instance implementing the sync or async interface.
+        ttl (int | float | None): Freshness period in seconds.
+        jitter (int | None): Max random seconds added to ``ttl`` to stagger refreshes.
+        key_builder (Callable[..., str] | None): Optional custom key builder; by default,
+            uses a stable key derived from function identity and normalized args/kwargs.
+        condition (Callable[[Any], bool] | None): Predicate applied to the result; cache only if True.
+        version (str | None): Version string appended to cache key for explicit busting.
+        cache_none (bool): Whether to cache ``None`` results. Defaults to False.
+        stale_ttl (int | None): Additional stale window during which stale data is served
+            while a background refresh is triggered. Stored TTL = ttl(+jitter) + stale_ttl.
+        singleflight (bool): Deduplicate concurrent identical calls so that only one
+            computes while followers wait.
+        tags (Callable[..., list[str]] | list[str] | None): Static list or callable to attach tags.
+        tags_from_result (Callable[[Any], list[str]] | None): Derive tags from the computed result.
 
-    Behavior
-    - Keying: If `key_builder` is not provided, a stable key is built from function
-      identity plus normalized arguments. `version` is appended for explicit busting.
-    - Fresh vs Stale: If `stale_ttl` is set, values are stored as an envelope containing
-      the value and a "fresh-until" timestamp. Within [0, ttl] → serve fresh; within
-      (ttl, ttl+stale_ttl] → serve stale and trigger background refresh; after ttl+stale_ttl →
-      treat as miss and compute.
-    - Singleflight: On misses, only one caller computes while others wait for an event and
-      then read from cache. During the stale window, the stale value is returned immediately
-      and a background refresh is started (leaders only).
-    - Tags: When tags or tags_from_result are provided and the cache supports `add_tags`,
-      tags are attached after a successful store so future `invalidate_tags` can purge the entry.
+    Returns:
+        Callable[[Callable[..., Any]], Callable[..., Any]]: A decorator that wraps the function.
 
-    Notes
-    - For async functions, background refresh is scheduled via `asyncio.create_task`.
-    - For sync functions, background refresh runs in a daemon thread. If you need strict
-      control over concurrency across processes, consider adding distributed locks.
-    - `ttl` may be combined with `jitter` to reduce stampedes; `stale_ttl` further protects
-      tail latency by serving stale during refresh.
+    Notes:
+        - Keying: If ``key_builder`` is not provided, a stable key is built from function
+          identity and normalized arguments. ``version`` is appended for busting.
+        - Fresh vs Stale: With ``stale_ttl``, values are stored as an envelope containing
+          the value and a "fresh-until" timestamp. Within [0, ttl] returns fresh; within
+          (ttl, ttl+stale_ttl] returns stale and triggers background refresh; afterwards a miss.
+        - Singleflight: On misses, only one caller computes while others wait. During the
+          stale window, the stale value is returned immediately and a refresh is scheduled.
+        - Tags: When tags are provided and the cache supports ``add_tags``, tags are attached
+          after storing so future ``invalidate_tags`` can purge the entry.
     """
 
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
@@ -216,7 +255,14 @@ def cached(
                 cache.set(key, envelope, ttl=store_ttl)
 
         def _get_cached_entry(key: str) -> tuple[bool, Any, Optional[float]]:
-            """Returns (hit, value_or_envelope, fresh_until)."""
+            """Read cached entry and freshness info.
+
+            Args:
+                key (str): Cache key.
+
+            Returns:
+                tuple[bool, Any, float | None]: ``(hit, value, fresh_until_ts)``.
+            """
             val = cache.get(key, default=_MISSING)
             if val is _MISSING:
                 return False, None, None
@@ -226,7 +272,14 @@ def cached(
             return True, val, None
 
         async def _aget_cached_entry(key: str) -> tuple[bool, Any, Optional[float]]:
-            """Async version of _get_cached_entry."""
+            """Async version of ``_get_cached_entry``.
+
+            Args:
+                key (str): Cache key.
+
+            Returns:
+                tuple[bool, Any, float | None]: ``(hit, value, fresh_until_ts)``.
+            """
             val = await cache.get(key, default=_MISSING)
             if val is _MISSING:
                 return False, None, None

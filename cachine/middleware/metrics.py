@@ -12,14 +12,12 @@ _SENTINEL = object()
 class MetricsMiddleware(BaseMiddleware):
     """Collect basic hit/miss/error/latency metrics around cache operations.
 
-    Notes:
-    - Hits/misses are counted on `get` calls. Hits are when the underlying cache
-      returns a non-sentinel value; misses when sentinel is returned. To avoid
-      ambiguity with `default`, this middleware calls the wrapped cache with its
-      own sentinel and then maps a miss back to the caller's provided `default`.
-    - Latency is the average of measured `get` call durations in milliseconds.
-    - Errors count any exceptions raised by wrapped methods; the exception is
-      re-raised after incrementing the counter.
+    Hits/misses are counted on ``get`` calls. To avoid ambiguity with a caller
+    provided ``default``, the middleware uses its own sentinel when delegating to
+    the underlying cache and then maps misses to the caller's default.
+
+    Args:
+        cache (Any): Wrapped cache instance.
     """
 
     def __init__(self, cache: Any) -> None:
@@ -32,6 +30,16 @@ class MetricsMiddleware(BaseMiddleware):
 
     # ---- Instrumented methods ----
     def get(self, key: str, default: Any = None, *, serializer: Any = None) -> Any:  # sync path
+        """Get a value while recording hit/miss and latency metrics.
+
+        Args:
+            key (str): Cache key.
+            default (Any, optional): Value to return on miss.
+            serializer (Any, optional): Optional serializer forwarded to the cache.
+
+        Returns:
+            Any: Cached value or ``default``.
+        """
         start = time.perf_counter()
         try:
             value = self._cache.get(key, default=_SENTINEL, serializer=serializer)
@@ -50,6 +58,16 @@ class MetricsMiddleware(BaseMiddleware):
         return value
 
     async def aget(self, key: str, default: Any = None, *, serializer: Any = None) -> Any:  # async convenience
+        """Async variant of ``get`` when the underlying cache supports async ``get``.
+
+        Args:
+            key (str): Cache key.
+            default (Any, optional): Value to return on miss.
+            serializer (Any, optional): Optional serializer forwarded to the cache.
+
+        Returns:
+            Any: Cached value or ``default``.
+        """
         start = time.perf_counter()
         try:
             # If underlying cache has async get, await it; else fallback to sync
@@ -75,6 +93,11 @@ class MetricsMiddleware(BaseMiddleware):
 
     # ---- Stats ----
     def get_stats(self) -> dict[str, Any]:
+        """Return collected metrics.
+
+        Returns:
+            dict[str, Any]: ``{"hits": int, "misses": int, "hit_rate": float, "errors": int, "avg_latency_ms": float}``.
+        """
         total = self._hits + self._misses
         hit_rate = (self._hits / total) if total else 0.0
         avg_latency = (self._latency_total_ms / self._latency_count) if self._latency_count else 0.0

@@ -10,9 +10,20 @@ _MISSING = object()
 
 
 class RedisCache:
-    """Sync Redis cache scaffold.
+    """Synchronous Redis-backed cache.
 
-    This is a placeholder; wire to a real Redis client in implementation.
+    Provides get/set, TTL management, counters, and tag invalidation using a
+    Redis client. A default serializer can be configured for values.
+
+    Args:
+        host (str): Redis host. Defaults to ``"localhost"``.
+        port (int): Redis port. Defaults to ``6379``.
+        db (int): Redis database index. Defaults to ``0``.
+        password (str | None): Optional password.
+        ssl (bool): Whether to use TLS.
+        namespace (str | None): Optional key namespace prefix, e.g. ``"app:"``.
+        client (Any | None): Optional injected client (must implement RedisClient-like API).
+        serializer (Any | None): Default serializer for values supporting ``dumps``/``loads``.
     """
 
     def __init__(
@@ -35,6 +46,17 @@ class RedisCache:
 
     # Basic ops (stubs)
     def get(self, key: str, default: Any = None, *, serializer: Any = None) -> Any:
+        """Get a value by key.
+
+        Args:
+            key (str): Cache key.
+            default (Any, optional): Value to return when key is missing.
+            serializer (Any, optional): Serializer to decode bytes; defaults to
+                the instance serializer.
+
+        Returns:
+            Any: Decoded value from Redis or ``default`` if missing.
+        """
         k = self._ns + key
         client = self._require_client()
         raw = client.get(k)
@@ -50,6 +72,17 @@ class RedisCache:
         return raw
 
     def set(self, key: str, value: Any, *, ttl: Optional[int | timedelta] = None, serializer: Any = None) -> None:
+        """Set a value by key.
+
+        Args:
+            key (str): Cache key.
+            value (Any): Value to store.
+            ttl (int | timedelta | None): Optional time-to-live.
+            serializer (Any, optional): Serializer to encode value; defaults to instance serializer.
+
+        Returns:
+            None
+        """
         k = self._ns + key
         client = self._require_client()
         ser = serializer or self._serializer
@@ -61,6 +94,14 @@ class RedisCache:
             client.set(k, payload)
 
     def delete(self, key: str) -> bool:
+        """Delete a key.
+
+        Args:
+            key (str): Cache key.
+
+        Returns:
+            bool: True if the key existed and was removed.
+        """
         k = self._ns + key
         client = self._require_client()
         try:
@@ -74,6 +115,14 @@ class RedisCache:
             return before
 
     def exists(self, key: str) -> bool:
+        """Check key existence.
+
+        Args:
+            key (str): Cache key.
+
+        Returns:
+            bool: True if the key exists.
+        """
         k = self._ns + key
         client = self._require_client()
         res = client.exists(k)
@@ -85,6 +134,16 @@ class RedisCache:
             return bool(res)
 
     def clear(self, *, dangerously_clear_all: bool = False) -> None:
+        """Clear keys in the current namespace or flush the DB.
+
+        Args:
+            dangerously_clear_all (bool): When True, flushes the entire database.
+                When False, requires a configured namespace and removes only keys
+                in that namespace using SCAN/DEL.
+
+        Returns:
+            None
+        """
         client = self._require_client()
         if dangerously_clear_all:
             try:
@@ -114,7 +173,21 @@ class RedisCache:
 
     # Enrichment
     def get_or_set(self, key: str, factory: Any, *, ttl: Optional[int | timedelta] = None, jitter: Optional[int] = None) -> Any:  # pylint: disable=unused-argument
-        # Simple non-atomic get-or-set for scaffold
+        """Get or compute-and-set a value.
+
+        Args:
+            key (str): Cache key.
+            factory (Any): Callable or value used to compute the value when missing.
+            ttl (int | timedelta | None): Optional TTL for the stored value.
+            jitter (int | None): Ignored by this implementation.
+
+        Returns:
+            Any: Existing value if present; otherwise the computed value.
+
+        Note:
+            This implementation is non-atomic and may compute twice under races.
+            For strict single-flight behavior consider using the decorator-based API.
+        """
         sentinel = _MISSING
         val = self.get(key, default=sentinel)
         if val is not sentinel:
@@ -125,6 +198,15 @@ class RedisCache:
 
     # TTL management
     def expire(self, key: str, *, ttl: int | timedelta) -> bool:
+        """Set a relative expiration.
+
+        Args:
+            key (str): Cache key.
+            ttl (int | timedelta): Relative TTL.
+
+        Returns:
+            bool: True if the key existed and TTL was set.
+        """
         k = self._ns + key
         client = self._require_client()
         seconds = to_seconds(ttl)
@@ -134,6 +216,15 @@ class RedisCache:
         return bool(res)
 
     def expire_at(self, key: str, when: datetime) -> bool:
+        """Set an absolute expiration.
+
+        Args:
+            key (str): Cache key.
+            when (datetime): Absolute UTC expiration time.
+
+        Returns:
+            bool: True if the key existed and expiration was set.
+        """
         k = self._ns + key
         client = self._require_client()
         # redis-py accepts unix time seconds for expireat
@@ -142,6 +233,16 @@ class RedisCache:
         return bool(res)
 
     def touch(self, key: str, *, ttl: Optional[int | timedelta] = None) -> bool:
+        """Refresh presence or set a new TTL.
+
+        Args:
+            key (str): Cache key.
+            ttl (int | timedelta | None): Optional TTL to set. When None, attempts
+                a Redis TOUCH or falls back to existence check.
+
+        Returns:
+            bool: True if key exists (and TTL was updated when provided).
+        """
         # Redis TOUCH does not change TTL; emulate by setting expire when ttl is provided.
         if ttl is None:
             # If client supports TOUCH, use it; else return exists
@@ -155,6 +256,14 @@ class RedisCache:
             return self.expire(key, ttl=ttl)
 
     def ttl(self, key: str) -> Optional[int]:
+        """Get remaining TTL.
+
+        Args:
+            key (str): Cache key.
+
+        Returns:
+            int | None: Remaining seconds; None if no TTL or missing.
+        """
         k = self._ns + key
         client = self._require_client()
         res = client.ttl(k)
@@ -168,6 +277,14 @@ class RedisCache:
         return val
 
     def persist(self, key: str) -> bool:
+        """Remove expiration from a key.
+
+        Args:
+            key (str): Cache key.
+
+        Returns:
+            bool: True if a TTL existed and was removed.
+        """
         k = self._ns + key
         client = self._require_client()
         try:
@@ -187,6 +304,16 @@ class RedisCache:
 
     # Counters
     def incr(self, key: str, *, delta: int = 1, ttl_on_create: Optional[int | timedelta] = None) -> int:
+        """Increment an integer value by ``delta``.
+
+        Args:
+            key (str): Cache key.
+            delta (int): Increment amount.
+            ttl_on_create (int | timedelta | None): TTL set only when the key is first created.
+
+        Returns:
+            int: The new integer value.
+        """
         k = self._ns + key
         client = self._require_client()
         if ttl_on_create is None:
@@ -218,10 +345,27 @@ class RedisCache:
             return val
 
     def decr(self, key: str, *, delta: int = 1) -> int:
+        """Decrement an integer value.
+
+        Args:
+            key (str): Cache key.
+            delta (int): Decrement amount.
+
+        Returns:
+            int: The new integer value.
+        """
         return self.incr(key, delta=-int(delta))
 
     # Tags
     def invalidate_tags(self, tags: list[str]) -> int:
+        """Invalidate keys by tags.
+
+        Args:
+            tags (list[str]): Tags to invalidate.
+
+        Returns:
+            int: Number of unique keys deleted across all tags.
+        """
         client = self._require_client()
         deleted_keys: set[str] = set()
         for tag in tags:
@@ -246,24 +390,49 @@ class RedisCache:
 
     # Health / lifecycle
     def ping(self) -> dict[str, Any]:
+        """Check health.
+
+        Returns:
+            dict[str, Any]: Health payload with ``healthy``, ``latency_ms``, and ``backend``.
+        """
         return {"healthy": True, "latency_ms": 0.0, "backend": "redis"}
 
     def ping_ok(self) -> bool:
+        """Return a boolean health indicator.
+
+        Returns:
+            bool: True if the cache is considered healthy.
+        """
         s = self.ping()
         return bool(s.get("healthy", False))
 
     def close(self) -> None:
+        """Close the underlying client if applicable."""
         return None
 
     # Context manager
     def __enter__(self) -> RedisCache:
+        """Enter context manager.
+
+        Returns:
+            RedisCache: This cache instance.
+        """
         return self
 
     def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        """Exit context manager; no explicit cleanup required."""
         return None
 
     # Internal helpers
     def _require_client(self) -> Any:
+        """Return or construct a Redis client wrapper.
+
+        Returns:
+            Any: A client implementing the subset of redis-py used here.
+
+        Raises:
+            RuntimeError: If a client cannot be constructed and none is injected.
+        """
         if self._client is not None:
             return self._client
         # Lazy import to avoid hard dependency when injected client is used
@@ -282,6 +451,15 @@ class RedisCache:
 
     # Tag helpers
     def add_tags(self, key: str, tags: list[str]) -> None:
+        """Associate tags with a key.
+
+        Args:
+            key (str): Cache key (without namespace).
+            tags (list[str]): Tags to associate.
+
+        Returns:
+            None
+        """
         client = self._require_client()
         k = self._ns + key
         for tag in tags:

@@ -4,7 +4,16 @@ from typing import Any
 
 
 def default_key_builder(func_name: str, *args: Any, **kwargs: Any) -> str:
-    """Very simple default key builder placeholder."""
+    """Build a simple cache key from function name and arguments.
+
+    Args:
+        func_name (str): Fully qualified function name.
+        *args (Any): Positional arguments.
+        **kwargs (Any): Keyword arguments.
+
+    Returns:
+        str: Key of the form ``"func|arg1|arg2:kw1=v1|kw2=v2"``.
+    """
     parts = [func_name]
     if args:
         parts.append("|".join(map(str, args)))

@@ -6,10 +6,19 @@ from .sync import RedisCache
 
 
 class RedisSentinelCache(RedisCache):
-    """RedisCache configured via Redis Sentinel.
+    """Redis cache configured via Redis Sentinel.
 
-    Uses redis.sentinel.Sentinel to obtain a master client and injects it into
-    the base RedisCache. Falls back gracefully if redis.sentinel is unavailable.
+    Uses ``redis.sentinel.Sentinel`` to obtain a master client and injects it
+    into the base :class:`cachine.backends.redis.sync.RedisCache`.
+
+    Args:
+        sentinels (list[tuple[str, int]]): Sentinel host/port tuples.
+        service_name (str): Sentinel service name (master alias).
+        password (str | None): Password for Redis.
+        db (int): Database index.
+        ssl (bool): Whether to use TLS.
+        namespace (str | None): Optional namespace prefix.
+        serializer (Any | None): Default serializer for values.
     """
 
     def __init__(

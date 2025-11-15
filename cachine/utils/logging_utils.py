@@ -6,8 +6,8 @@ from collections.abc import Iterable
 from typing import Optional
 
 try:  # Optional dependency for colored output
-    from colorama import Fore, Style  # pylint: disable=import-error
-    from colorama import init as colorama_init
+    from colorama import Fore, Style  # type: ignore  # pylint: disable=import-error
+    from colorama import init as colorama_init  # type: ignore  # pylint: disable=import-error
 
     colorama_init(autoreset=True)
 except Exception:  # pragma: no cover - graceful degradation
@@ -37,6 +37,14 @@ class ColorFormatter(logging.Formatter):
     }
 
     def format(self, record: logging.LogRecord) -> str:  # pragma: no cover - formatting logic
+        """Format a record with color.
+
+        Args:
+            record (logging.LogRecord): Log record.
+
+        Returns:
+            str: Formatted message string.
+        """
         log_color = self.LOG_COLORS.get(record.levelno, Fore.WHITE)
         if self.usesTime():
             record.asctime = self.formatTime(record, self.datefmt)
@@ -68,11 +76,12 @@ def __logger_setup(  # noqa: D401 - simple setup function
     include: Optional[Iterable[str]] = None,
     fmt: str = "%(asctime)s - %(levelname)s - %(name)s - %(filename)s:%(lineno)d - %(message)s",
 ) -> None:
-    """Configure root and common third-party loggers with a colored formatter.
+    """Configure root and third-party loggers with a colored formatter.
 
-    - level: overrides root log level; defaults to LOG_LEVEL env var or INFO.
-    - include: extra logger names to configure; a sensible default set is applied.
-    - fmt: log format string for the ColorFormatter.
+    Args:
+        level (str | int | None): Root log level or name; defaults to ``LOG_LEVEL`` env var or INFO.
+        include (Iterable[str] | None): Additional logger names to configure.
+        fmt (str): Log format string for the ColorFormatter.
     """
 
     resolved_level = _parse_level(level or os.getenv("LOG_LEVEL"))
@@ -103,7 +112,11 @@ def __logger_setup(  # noqa: D401 - simple setup function
 
 
 def logger_setup(**kwargs: Optional[str | int | Iterable[str]]) -> None:
-    """Public alias for __logger_setup to avoid name-mangling by some tools."""
+    """Public alias for ``__logger_setup``.
+
+    Args:
+        **kwargs: Forwarded keyword arguments; see ``__logger_setup``.
+    """
     __logger_setup(**kwargs)  # type: ignore[arg-type]
 
 

@@ -11,7 +11,14 @@ TTL = Optional["TTLValue"]
 
 @dataclass(frozen=True)
 class TTLValue:
-    """Explicit TTL value wrapper for typing; accepts seconds or timedelta."""
+    """Explicit TTL value wrapper for typing.
+
+    Either ``seconds`` or ``delta`` may be provided to indicate a TTL.
+
+    Args:
+        seconds (int | None): TTL in seconds.
+        delta (datetime.timedelta | None): TTL as a timedelta.
+    """
 
     seconds: Optional[int] = None
     delta: Optional[timedelta] = None
