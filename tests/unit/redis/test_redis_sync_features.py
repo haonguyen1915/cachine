@@ -11,7 +11,7 @@ def test_exists_and_default(redis_sync_cache):
     cache = redis_sync_cache
     assert cache.get("missing", default=123) == 123
     assert cache.exists("missing") in (False, 0)
-    cache.set("x", b"1")
+    cache.set("x", "1")
     assert cache.exists("x") in (True, 1)
 
 
@@ -21,8 +21,8 @@ def test_namespace_isolation(redis_sync_cache):
     cfg = dict(host=base._cfg["host"], port=base._cfg["port"], db=base._cfg["db"], ssl=base._cfg["ssl"])  # type: ignore[attr-defined]
     other = RedisCache(namespace="ns2", password=base._password, **cfg)  # type: ignore[attr-defined]
 
-    base.set("k", b"v")
-    assert base.get("k") == b"v"
+    base.set("k", "v")
+    assert base.get("k") == "v"
     assert other.get("k") is None
 
 

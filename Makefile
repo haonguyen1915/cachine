@@ -43,6 +43,11 @@ fix:
 format:
 	poetry run ruff format
 
+.PHONY: test
+test:
+	@echo "🚀 Running tests with pytest"
+	poetry run pytest tests
+
 .PHONY: run
 run:
 	uvicorn polycrud.__main__:app --host 0.0.0.0 --port 8001
