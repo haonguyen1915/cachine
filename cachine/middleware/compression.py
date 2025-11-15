@@ -51,44 +51,72 @@ class CompressionMiddleware(BaseMiddleware):
 
     def set(self, key: str, value: Any, *, ttl: Optional[int] = None, serializer: Any = None) -> None:
         """Store value with optional compression if size exceeds threshold (sync)."""
+        # Determine original type for restoration later
+        original_type = type(value).__name__
+
         # Serialize first if serializer is provided
         if serializer is not None:
             payload = serializer.dumps(value)
         elif hasattr(self._cache, "_serializer") and self._cache._serializer is not None:
             payload = self._cache._serializer.dumps(value)
         else:
-            # No serializer - assume value is already bytes or will be handled by underlying cache
-            payload = value if isinstance(value, bytes) else str(value).encode("utf-8")
+            # No serializer - convert to bytes for compression
+            if isinstance(value, bytes):
+                payload = value
+                original_type = "bytes"
+            elif isinstance(value, str):
+                payload = value.encode("utf-8")
+                original_type = "str"
+            else:
+                # Store as-is without compression
+                self._cache.set(key, value, ttl=ttl)
+                return
 
         # Compress if payload exceeds min_size
         if isinstance(payload, bytes) and len(payload) >= self.min_size:
             compressed = self._compress(payload)
-            # Store with compression marker
-            wrapped_value = {"__compressed__": True, "data": compressed}
-            self._cache.set(key, wrapped_value, ttl=ttl, serializer=None)
+            # Store with compression marker and type info
+            wrapped_value = {"__compressed__": True, "data": compressed, "type": original_type}
+            self._cache.set(key, wrapped_value, ttl=ttl)
         else:
             # Store as-is
-            self._cache.set(key, value, ttl=ttl, serializer=serializer)
+            self._cache.set(key, value, ttl=ttl)
 
     async def aset(self, key: str, value: Any, *, ttl: Optional[int] = None, serializer: Any = None) -> None:
         """Store value with optional compression if size exceeds threshold (async)."""
+        # Determine original type for restoration later
+        original_type = type(value).__name__
+
         # Serialize first if serializer is provided
         if serializer is not None:
             payload = serializer.dumps(value)
         elif hasattr(self._cache, "_serializer") and self._cache._serializer is not None:
             payload = self._cache._serializer.dumps(value)
         else:
-            payload = value if isinstance(value, bytes) else str(value).encode("utf-8")
+            if isinstance(value, bytes):
+                payload = value
+                original_type = "bytes"
+            elif isinstance(value, str):
+                payload = value.encode("utf-8")
+                original_type = "str"
+            else:
+                # Store as-is when not serializable to bytes easily
+                set_fn = self._cache.set
+                if inspect.iscoroutinefunction(set_fn):
+                    await set_fn(key, value, ttl=ttl)
+                else:
+                    set_fn(key, value, ttl=ttl)
+                return
 
         # Compress if payload exceeds min_size
         if isinstance(payload, bytes) and len(payload) >= self.min_size:
             compressed = self._compress(payload)
-            wrapped_value = {"__compressed__": True, "data": compressed}
+            wrapped_value = {"__compressed__": True, "data": compressed, "type": original_type}
             set_fn = self._cache.set
             if inspect.iscoroutinefunction(set_fn):
-                await set_fn(key, wrapped_value, ttl=ttl, serializer=None)
+                await set_fn(key, wrapped_value, ttl=ttl)
             else:
-                set_fn(key, wrapped_value, ttl=ttl, serializer=None)
+                set_fn(key, wrapped_value, ttl=ttl)
         else:
             set_fn = self._cache.set
             if inspect.iscoroutinefunction(set_fn):
@@ -98,24 +126,27 @@ class CompressionMiddleware(BaseMiddleware):
 
     def get(self, key: str, default: Any = None, *, serializer: Any = None) -> Any:
         """Retrieve value and decompress if necessary (sync)."""
-        value = self._cache.get(key, default=None, serializer=None)
+        value = self._cache.get(key, default=None)
         if value is None:
             return default
 
         # Check if value is compressed
         if isinstance(value, dict) and value.get("__compressed__"):
             decompressed = self._decompress(value["data"])
+            original_type = value.get("type", "bytes")
+
             # Deserialize if serializer is provided
             if serializer is not None:
                 return serializer.loads(decompressed)
             if hasattr(self._cache, "_serializer") and self._cache._serializer is not None:
                 return self._cache._serializer.loads(decompressed)
+
+            # Restore original type
+            if original_type == "str":
+                return decompressed.decode("utf-8")
             return decompressed
 
-        # Not compressed - return as-is (may need deserialization by underlying cache)
-        if serializer is not None:
-            # Value was not compressed, but might need deserialization
-            return value
+        # Not compressed - return as-is
         return value
 
     async def aget(self, key: str, default: Any = None, *, serializer: Any = None) -> Any:
@@ -132,11 +163,14 @@ class CompressionMiddleware(BaseMiddleware):
         # Check if value is compressed
         if isinstance(value, dict) and value.get("__compressed__"):
             decompressed = self._decompress(value["data"])
+            original_type = value.get("type", "bytes")
             # Deserialize if serializer is provided
             if serializer is not None:
                 return serializer.loads(decompressed)
             if hasattr(self._cache, "_serializer") and self._cache._serializer is not None:
                 return self._cache._serializer.loads(decompressed)
+            if original_type == "str":
+                return decompressed.decode("utf-8")
             return decompressed
 
         return value

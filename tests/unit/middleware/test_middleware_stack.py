@@ -8,26 +8,56 @@ from cachine.serializers import JSONSerializer, PickleSerializer
 
 
 def test_middleware_stack_inmemory_basic():
-    """Test basic middleware stacking with compression, encryption, and metrics."""
+    """Test that compression, encryption, and metrics middleware work together correctly.
+
+    This test verifies:
+    1. Data passes through all middleware layers (compression -> encryption -> metrics)
+    2. Data is correctly serialized, compressed, encrypted on set
+    3. Data is correctly decrypted, decompressed, deserialized on get
+    4. Metrics are collected correctly through the stack
+    5. The underlying storage contains encrypted+compressed data, not plaintext
+    """
     base = InMemoryCache(namespace="mw")
     cache = CompressionMiddleware(base, algorithm="gzip", min_size=0)
-    cache = EncryptionMiddleware(cache, key="secret", key_id="v1")
+    cache = EncryptionMiddleware(cache, key="secret-key-123", key_id="v1")
     cache = MetricsMiddleware(cache)
+    serializer = JSONSerializer()
 
-    data = {"a": 1, "b": [2, 3]}
-    cache.set("k", data, ttl=5)
-    assert cache.get("k") == data
+    # Test data - will be serialized, compressed, and encrypted
+    test_data = {"user": "alice", "roles": ["admin", "user"], "count": 42}
 
-    # exercise ttl funcs through the stack
-    t = cache.ttl("k")
-    assert t is None or (isinstance(t, int) and t >= 0)
-    assert cache.persist("k") in (True, False)
-    assert cache.delete("k") in (True, False)
+    # Set data through the middleware stack
+    cache.set("test_key", test_data, ttl=60, serializer=serializer)
 
-    # metrics available
+    # Verify data can be retrieved correctly (decrypted, decompressed, deserialized)
+    retrieved = cache.get("test_key", serializer=serializer)
+    assert retrieved == test_data
+
+    # Verify metrics were collected (1 get = 1 hit)
     stats = cache.get_stats()
-    assert set(["hits", "misses"]).issubset(stats.keys())
-    pprint.pprint(stats)
+    assert stats["hits"] == 1
+    assert stats["misses"] == 0
+    assert stats["hit_rate"] == 1.0
+    assert stats["avg_latency_ms"] > 0
+
+    # Verify data is actually encrypted in storage (not plaintext)
+    raw_stored = base.get("test_key")
+    assert isinstance(raw_stored, dict)
+    assert raw_stored.get("__encrypted__") is True
+    assert "data" in raw_stored
+    # The encrypted data should be bytes, not the original dict
+    assert raw_stored["data"] != test_data
+
+    # Test cache miss increments miss counter
+    result = cache.get("nonexistent_key", serializer=serializer)
+    assert result is None
+    stats = cache.get_stats()
+    assert stats["misses"] == 1
+
+    # Test delete works through the stack
+    deleted = cache.delete("test_key")
+    assert deleted is True
+    assert cache.get("test_key", serializer=serializer) is None
 
 
 def test_middleware_forwards_invalidate_tags():
@@ -95,13 +125,14 @@ def test_compression_middleware_min_size():
 
 
 def test_compression_middleware_with_serializer():
-    """Test compression middleware with JSON serializer."""
-    base = InMemoryCache(namespace="comp_ser", serializer=JSONSerializer())
+    """Test compression middleware with JSON serializer (passed to get/set)."""
+    base = InMemoryCache(namespace="comp_ser")
     cache = CompressionMiddleware(base, algorithm="gzip", min_size=0)
+    serializer = JSONSerializer()
 
     data = {"users": [{"id": i, "name": f"user{i}"} for i in range(100)]}
-    cache.set("data", data)
-    result = cache.get("data")
+    cache.set("data", data, serializer=serializer)
+    result = cache.get("data", serializer=serializer)
     assert result == data
 
 
@@ -123,13 +154,14 @@ def test_encryption_middleware_basic():
 
 
 def test_encryption_middleware_with_serializer():
-    """Test encryption middleware with serializer."""
-    base = InMemoryCache(namespace="enc_ser", serializer=JSONSerializer())
+    """Test encryption middleware with serializer (passed to get/set)."""
+    base = InMemoryCache(namespace="enc_ser")
     cache = EncryptionMiddleware(base, key="secret123", key_id="v2")
+    serializer = JSONSerializer()
 
     data = {"password": "secret", "api_key": "12345"}
-    cache.set("credentials", data)
-    result = cache.get("credentials")
+    cache.set("credentials", data, serializer=serializer)
+    result = cache.get("credentials", serializer=serializer)
     assert result == data
 
 
@@ -200,10 +232,11 @@ def test_metrics_middleware_hit_rate():
 
 def test_full_middleware_stack():
     """Test full stack: Compression -> Encryption -> Metrics."""
-    base = InMemoryCache(namespace="full_stack", serializer=PickleSerializer())
+    base = InMemoryCache(namespace="full_stack")
     cache = CompressionMiddleware(base, algorithm="gzip", min_size=50)
     cache = EncryptionMiddleware(cache, key="super-secret", key_id="prod-v1")
     cache = MetricsMiddleware(cache)
+    serializer = PickleSerializer()
 
     # Complex data that will be serialized, compressed, and encrypted
     data = {
@@ -212,8 +245,8 @@ def test_full_middleware_stack():
     }
 
     # Set and get through full stack
-    cache.set("complex_data", data, ttl=60)
-    result = cache.get("complex_data")
+    cache.set("complex_data", data, ttl=60, serializer=serializer)
+    result = cache.get("complex_data", serializer=serializer)
     assert result == data
 
     # Verify metrics

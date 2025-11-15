@@ -55,22 +55,34 @@ class EncryptionMiddleware(BaseMiddleware):
 
     def _encrypt(self, data: bytes) -> bytes:
         """Encrypt data using Fernet."""
-        return self._fernet.encrypt(data)
+        return self._fernet.encrypt(data)  # type: ignore[no-any-return]
 
     def _decrypt(self, data: bytes) -> bytes:
         """Decrypt data using Fernet."""
-        return self._fernet.decrypt(data)
+        return self._fernet.decrypt(data)  # type: ignore[no-any-return]
 
     def set(self, key: str, value: Any, *, ttl: Optional[int] = None, serializer: Any = None) -> None:
         """Store encrypted value (sync)."""
+        # Determine original type for restoration later
+        original_type = type(value).__name__
+
         # Serialize first if serializer is provided
         if serializer is not None:
             payload = serializer.dumps(value)
         elif hasattr(self._cache, "_serializer") and self._cache._serializer is not None:
             payload = self._cache._serializer.dumps(value)
         else:
-            # No serializer - assume value is already bytes or convert to bytes
-            payload = value if isinstance(value, bytes) else str(value).encode("utf-8")
+            # No serializer - convert to bytes for encryption
+            if isinstance(value, bytes):
+                payload = value
+                original_type = "bytes"
+            elif isinstance(value, str):
+                payload = value.encode("utf-8")
+                original_type = "str"
+            else:
+                # For non-serializable types, store as-is
+                self._cache.set(key, value, ttl=ttl)
+                return
 
         # Encrypt the payload
         if not isinstance(payload, bytes):
@@ -83,18 +95,34 @@ class EncryptionMiddleware(BaseMiddleware):
             "__encrypted__": True,
             "key_id": self.key_id,
             "data": encrypted,
+            "type": original_type,
         }
-        self._cache.set(key, wrapped_value, ttl=ttl, serializer=None)
+        self._cache.set(key, wrapped_value, ttl=ttl)
 
     async def aset(self, key: str, value: Any, *, ttl: Optional[int] = None, serializer: Any = None) -> None:
         """Store encrypted value (async)."""
+        # Determine original type for restoration later
+        original_type = type(value).__name__
+
         # Serialize first if serializer is provided
         if serializer is not None:
             payload = serializer.dumps(value)
         elif hasattr(self._cache, "_serializer") and self._cache._serializer is not None:
             payload = self._cache._serializer.dumps(value)
         else:
-            payload = value if isinstance(value, bytes) else str(value).encode("utf-8")
+            if isinstance(value, bytes):
+                payload = value
+                original_type = "bytes"
+            elif isinstance(value, str):
+                payload = value.encode("utf-8")
+                original_type = "str"
+            else:
+                set_fn = self._cache.set
+                if inspect.iscoroutinefunction(set_fn):
+                    await set_fn(key, value, ttl=ttl)
+                else:
+                    set_fn(key, value, ttl=ttl)
+                return
 
         # Encrypt the payload
         if not isinstance(payload, bytes):
@@ -107,16 +135,17 @@ class EncryptionMiddleware(BaseMiddleware):
             "__encrypted__": True,
             "key_id": self.key_id,
             "data": encrypted,
+            "type": original_type,
         }
         set_fn = self._cache.set
         if inspect.iscoroutinefunction(set_fn):
-            await set_fn(key, wrapped_value, ttl=ttl, serializer=None)
+            await set_fn(key, wrapped_value, ttl=ttl)
         else:
-            set_fn(key, wrapped_value, ttl=ttl, serializer=None)
+            set_fn(key, wrapped_value, ttl=ttl)
 
     def get(self, key: str, default: Any = None, *, serializer: Any = None) -> Any:
         """Retrieve and decrypt value (sync)."""
-        value = self._cache.get(key, default=None, serializer=None)
+        value = self._cache.get(key, default=None)
         if value is None:
             return default
 
@@ -124,12 +153,17 @@ class EncryptionMiddleware(BaseMiddleware):
         if isinstance(value, dict) and value.get("__encrypted__"):
             # TODO: Support key rotation by checking key_id and using appropriate key
             decrypted = self._decrypt(value["data"])
+            original_type = value.get("type", "bytes")
 
             # Deserialize if serializer is provided
             if serializer is not None:
                 return serializer.loads(decrypted)
             if hasattr(self._cache, "_serializer") and self._cache._serializer is not None:
                 return self._cache._serializer.loads(decrypted)
+
+            # Restore original type
+            if original_type == "str":
+                return decrypted.decode("utf-8")
             return decrypted
 
         # Not encrypted - return as-is
@@ -149,12 +183,15 @@ class EncryptionMiddleware(BaseMiddleware):
         # Check if value is encrypted
         if isinstance(value, dict) and value.get("__encrypted__"):
             decrypted = self._decrypt(value["data"])
+            original_type = value.get("type", "bytes")
 
             # Deserialize if serializer is provided
             if serializer is not None:
                 return serializer.loads(decrypted)
             if hasattr(self._cache, "_serializer") and self._cache._serializer is not None:
                 return self._cache._serializer.loads(decrypted)
+            if original_type == "str":
+                return decrypted.decode("utf-8")
             return decrypted
 
         return value
