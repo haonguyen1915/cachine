@@ -355,3 +355,94 @@ class AsyncRedisCache:
             decode_responses=False,
         )
         return self._client
+
+
+class AsyncRedisSentinelCache(AsyncRedisCache):
+    """Async Redis cache configured via Redis Sentinel (redis.asyncio).
+
+    Creates a sentinel connection and injects a master client into AsyncRedisCache.
+    """
+
+    def __init__(
+        self,
+        *,
+        sentinels: list[tuple[str, int]],
+        service_name: str,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        db: int = 0,
+        ssl: bool = False,
+        namespace: Optional[str] = None,
+        serializer: Optional[Any] = None,
+    ) -> None:
+        try:
+            from redis.asyncio.sentinel import Sentinel  # type: ignore
+        except Exception as e:  # pragma: no cover
+            raise RuntimeError("redis.asyncio.sentinel is not available; install redis>=4") from e
+
+        sentinel = Sentinel(sentinels, socket_timeout=2, ssl=ssl)
+        client = sentinel.master_for(service_name, db=db, username=username, password=password, ssl=ssl)
+        # Inject client
+        super().__init__(
+            host="",
+            port=0,
+            db=db,
+            password=password,
+            ssl=ssl,
+            namespace=namespace,
+            client=client,
+            serializer=serializer,
+        )
+
+
+class AsyncRedisClusterCache(AsyncRedisCache):
+    """Async Redis cache configured for Redis Cluster (redis.asyncio)."""
+
+    def __init__(
+        self,
+        *,
+        nodes: list[dict[str, Any]],
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        ssl: bool = False,
+        namespace: Optional[str] = None,
+        serializer: Optional[Any] = None,
+    ) -> None:
+        try:
+            from redis.asyncio.cluster import RedisCluster  # type: ignore
+        except Exception as e:  # pragma: no cover
+            raise RuntimeError("redis.asyncio.cluster not available; install redis>=5") from e
+
+        # Prefer ClusterNode if available
+        client = None
+        try:
+            try:
+                from redis.asyncio.cluster import ClusterNode  # type: ignore
+            except Exception:
+                ClusterNode = None  # type: ignore
+
+            if ClusterNode is not None:
+                cluster_nodes = [ClusterNode(n["host"], int(n.get("port", 6379))) for n in nodes]
+                try:
+                    client = RedisCluster(nodes=cluster_nodes, username=username, password=password, ssl=ssl)
+                except TypeError:
+                    client = RedisCluster(startup_nodes=[{"host": n["host"], "port": int(n.get("port", 6379))} for n in nodes], username=username, password=password, ssl=ssl)
+            else:
+                client = RedisCluster(startup_nodes=[{"host": n["host"], "port": int(n.get("port", 6379))} for n in nodes], username=username, password=password, ssl=ssl)
+        except Exception:
+            client = None
+
+        if client is None:
+            first = nodes[0]
+            client = RedisCluster(host=first["host"], port=int(first.get("port", 6379)), username=username, password=password, ssl=ssl)
+
+        super().__init__(
+            host="",
+            port=0,
+            db=0,
+            password=password,
+            ssl=ssl,
+            namespace=namespace,
+            client=client,
+            serializer=serializer,
+        )
