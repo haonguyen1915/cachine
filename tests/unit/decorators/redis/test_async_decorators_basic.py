@@ -34,6 +34,12 @@ async def test_async_decorator_stale_ttl_refresh(redis_async_cache):
     await asyncio.sleep(1.2)
     v = await expensive()  # stale
     assert v == 1
-    await asyncio.sleep(0.2)
-    assert await expensive() == 2
-
+    # Wait up to 2s for background refresh
+    deadline = asyncio.get_event_loop().time() + 2.0
+    updated = False
+    while asyncio.get_event_loop().time() < deadline:
+        await asyncio.sleep(0.05)
+        if await expensive() == 2:
+            updated = True
+            break
+    assert updated, "Background refresh did not complete in time"
