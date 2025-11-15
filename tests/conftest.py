@@ -1,10 +1,12 @@
 import os
-import time
 
 import pytest
 from dotenv import load_dotenv
 
+from cachine import logger_setup
+
 load_dotenv()
+logger_setup(level="DEBUG")
 
 
 @pytest.fixture

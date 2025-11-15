@@ -10,6 +10,7 @@ from .backends.redis.sync import RedisCache
 from .backends.redis.async_ import AsyncRedisCache
 from .decorators.cached import cached
 from .factory import create_cache
+from .utils.logger import logger_setup
 
 __all__ = [
     "InMemoryCache",
@@ -17,5 +18,5 @@ __all__ = [
     "AsyncRedisCache",
     "cached",
     "create_cache",
+    "logger_setup"
 ]
-

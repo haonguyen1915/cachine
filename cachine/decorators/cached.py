@@ -5,10 +5,12 @@ import threading
 import time
 import random
 from typing import Any, Callable, Optional, NamedTuple
+import uuid
 
 from ..utils.key_builder import default_key_builder
-from ..utils.helpers import to_seconds
+import logging
 
+_logger = logging.getLogger(__name__)
 
 class KeyContext(NamedTuple):
     module: str
@@ -57,10 +59,48 @@ def _build_key(fn: Callable[..., Any], key_builder: Optional[Callable[..., str]]
                 # key_builder might expect fewer args (e.g., self, x)
                 k = key_builder(*args)  # type: ignore[misc]
     else:
-        func_name = f"{fn.__module__}.{getattr(fn, '__qualname__', fn.__name__)}"
-        k = default_key_builder(func_name, *args, **kwargs)
+        module = fn.__module__
+        qualname = getattr(fn, "__qualname__", fn.__name__)
+        func_name = f"{module}.{qualname}"
+
+        # Smart handling for methods: avoid raw self/cls repr in keys
+        norm_args: list[Any] = list(args)
+        if "." in qualname and args:
+            first = args[0]
+            if inspect.isclass(first):
+                cls = first
+                norm_args[0] = f"cls:{cls.__module__}.{cls.__qualname__}"
+            else:
+                # Heuristic: treat as instance method only if first arg looks like an object instance
+                primitive_types = (int, float, str, bytes, bytearray, bool, tuple, list, dict, set, frozenset)
+                if not isinstance(first, primitive_types):
+                    ident: Optional[str] = None
+                    if hasattr(first, "__cache_key__") and callable(getattr(first, "__cache_key__")):
+                        try:
+                            ident = str(getattr(first, "__cache_key__")())
+                        except Exception:
+                            ident = None
+                    elif hasattr(first, "cache_key"):
+                        ck = getattr(first, "cache_key")
+                        try:
+                            ident = str(ck() if callable(ck) else ck)
+                        except Exception:
+                            ident = None
+                    if not ident:
+                        inst_id = getattr(first, "__cachine_id", None)
+                        if not inst_id:
+                            inst_id = uuid.uuid4().hex
+                            try:
+                                setattr(first, "__cachine_id", inst_id)
+                            except Exception:
+                                pass
+                        ident = f"inst:{inst_id}"
+                    norm_args[0] = ident
+
+        k = default_key_builder(func_name, *norm_args, **kwargs)
     if version:
         k = f"{k}|v:{version}"
+    _logger.debug(f"Built cache key: {k}")
     return k
 
 
