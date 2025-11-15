@@ -16,19 +16,19 @@ class TagBasedInvalidation:
     async def set(self, key: str, value: Any, *, ttl: Optional[int] = None, tags: Optional[list[str]] = None) -> None:
         # Set the value and attach tags if the backend supports it.
         if hasattr(self._cache, "set"):
-            res = self._cache.set(key, value, ttl=ttl)  # type: ignore[misc]
+            res = self._cache.set(key, value, ttl=ttl)
             if hasattr(res, "__await__"):
                 await res
         if tags and hasattr(self._cache, "add_tags"):
-            attach = getattr(self._cache, "add_tags")
-            out = attach(key, tags)
+            out = self._cache.add_tags(key, tags)
             if hasattr(out, "__await__"):
                 await out
 
     async def invalidate_tag(self, tag: str) -> int:
         if hasattr(self._cache, "invalidate_tags"):
-            res = self._cache.invalidate_tags([tag])  # type: ignore[misc]
+            res = self._cache.invalidate_tags([tag])
             if hasattr(res, "__await__"):
-                return await res
+                result: int = await res
+                return result
             return int(res) if res is not None else 0
         return 0

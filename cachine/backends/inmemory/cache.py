@@ -2,11 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from threading import RLock
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
-from ...core.types import Cache
-from ...strategies.eviction import LRUEviction, LFUEviction  # type: ignore
-
+from ...strategies.eviction import LRUEviction
 
 _MISSING = object()
 
@@ -20,18 +18,18 @@ class InMemoryCache:
     """
 
     def __init__(self, *, max_size: Optional[int] = None, eviction_policy: Any | None = None, namespace: str | None = None) -> None:
-        self._store: Dict[str, Any] = {}
-        self._ttl: Dict[str, Optional[datetime]] = {}
+        self._store: dict[str, Any] = {}
+        self._ttl: dict[str, Optional[datetime]] = {}
         self._ns = f"{namespace}:" if namespace else ""
         self._lock = RLock()
         self._max_size = max_size
         self._policy = eviction_policy or (LRUEviction() if max_size else None)
         # Tag indexes (namespaced)
-        self._tag_to_keys: Dict[str, set[str]] = {}
-        self._key_to_tags: Dict[str, set[str]] = {}
+        self._tag_to_keys: dict[str, set[str]] = {}
+        self._key_to_tags: dict[str, set[str]] = {}
 
     # Basic ops
-    def get(self, key: str, default: Any = None, *, serializer: Any = None) -> Any:
+    def get(self, key: str, default: Any = None, *, serializer: Any = None) -> Any:  # pylint: disable=unused-argument
         k = self._ns + key
         with self._lock:
             if k in self._store and not self._expired(k):
@@ -42,7 +40,7 @@ class InMemoryCache:
             self._cleanup_if_expired(k)
             return default
 
-    def set(self, key: str, value: Any, *, ttl: Optional[int | timedelta] = None, serializer: Any = None) -> None:
+    def set(self, key: str, value: Any, *, ttl: Optional[int | timedelta] = None, serializer: Any = None) -> None:  # pylint: disable=unused-argument
         k = self._ns + key
         with self._lock:
             self._store[k] = value
@@ -88,13 +86,11 @@ class InMemoryCache:
                 self._tag_to_keys.clear()
                 self._key_to_tags.clear()
                 if self._policy is not None:
-                    # reset policy tracking
-                    for_remove = []
-                    # Can't iterate policy internal; just drop and recreate
+                    # reset policy tracking: drop and recreate
                     self._policy = LRUEviction() if self._max_size else None
 
     # Enrichment
-    def get_or_set(self, key: str, factory, *, ttl: Optional[int | timedelta] = None, jitter: Optional[int] = None):
+    def get_or_set(self, key: str, factory: Any, *, ttl: Optional[int | timedelta] = None, jitter: Optional[int] = None) -> Any:  # pylint: disable=unused-argument
         sentinel = _MISSING
         val = self.get(key, default=sentinel)
         if val is not sentinel:
@@ -212,7 +208,7 @@ class InMemoryCache:
             self._key_to_tags[k] = existing
 
     # Health / lifecycle
-    def ping(self) -> dict:
+    def ping(self) -> dict[str, Any]:
         return {"healthy": True, "latency_ms": 0.0, "backend": "inmemory"}
 
     def ping_ok(self) -> bool:
@@ -222,10 +218,10 @@ class InMemoryCache:
         return None
 
     # Context manager
-    def __enter__(self) -> "InMemoryCache":
+    def __enter__(self) -> InMemoryCache:
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> None:  # no-op
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:  # no-op
         return None
 
     # Helpers

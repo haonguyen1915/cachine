@@ -2,8 +2,6 @@ import time
 import uuid
 from threading import Thread
 
-import pytest
-
 from cachine.backends.redis.pubsub import RedisInvalidationBus
 
 
@@ -39,4 +37,3 @@ def test_pubsub_invalidation_roundtrip(redis_sync_cache):
     assert evt.get("type") == "invalidate_tags"
     assert evt.get("namespace") == ns
     assert evt.get("tags") == tags
-

@@ -9,9 +9,10 @@ from .base import Serializer
 class MsgPackSerializer(Serializer):
     def dumps(self, value: Any) -> bytes:
         try:
-            import msgpack  # type: ignore
+            import msgpack
 
-            return msgpack.dumps(value, use_bin_type=True)
+            result: bytes = msgpack.dumps(value, use_bin_type=True)
+            return result
         except ModuleNotFoundError as e:  # pragma: no cover
             raise SerializationError("msgpack is not installed") from e
         except Exception as e:  # pragma: no cover
@@ -19,11 +20,10 @@ class MsgPackSerializer(Serializer):
 
     def loads(self, data: bytes) -> Any:
         try:
-            import msgpack  # type: ignore
+            import msgpack
 
             return msgpack.loads(data, raw=False)
         except ModuleNotFoundError as e:  # pragma: no cover
             raise DeserializationError("msgpack is not installed") from e
         except Exception as e:  # pragma: no cover
             raise DeserializationError(str(e)) from e
-

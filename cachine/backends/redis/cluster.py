@@ -37,9 +37,7 @@ class RedisClusterCache(RedisCache):
     >>> from cachine.backends.redis.cluster import RedisClusterCache
     >>> from cachine.serializers import JSONSerializer
     >>> cache = RedisClusterCache(
-    ...     nodes=[{"host": "localhost", "port": 7000},
-    ...            {"host": "localhost", "port": 7001},
-    ...            {"host": "localhost", "port": 7002}],
+    ...     nodes=[{"host": "localhost", "port": 7000}, {"host": "localhost", "port": 7001}, {"host": "localhost", "port": 7002}],
     ...     namespace="myapp",
     ...     serializer=JSONSerializer(),
     ... )
@@ -59,7 +57,7 @@ class RedisClusterCache(RedisCache):
         serializer: Optional[Any] = None,
     ) -> None:
         try:
-            from redis.cluster import RedisCluster  # type: ignore
+            from redis.cluster import RedisCluster
         except Exception as e:  # pragma: no cover
             raise RuntimeError("redis cluster client not available; install redis>=4 with cluster support") from e
 
@@ -69,20 +67,30 @@ class RedisClusterCache(RedisCache):
         client = None
         try:
             try:
-                from redis.cluster import ClusterNode  # type: ignore
+                from redis.cluster import ClusterNode as cluster_node_cls
             except Exception:
-                ClusterNode = None  # type: ignore
+                cluster_node_cls = None  # type: ignore
 
-            if ClusterNode is not None:
-                cluster_nodes = [ClusterNode(n["host"], int(n.get("port", 6379))) for n in nodes]
+            if cluster_node_cls is not None:
+                cluster_nodes = [cluster_node_cls(n["host"], int(n.get("port", 6379))) for n in nodes]
                 try:
                     client = RedisCluster(nodes=cluster_nodes, username=username, password=password, ssl=ssl)
                 except TypeError:
                     # Some versions still expect startup_nodes as list of dicts
-                    client = RedisCluster(startup_nodes=[{"host": n["host"], "port": int(n.get("port", 6379))} for n in nodes], username=username, password=password, ssl=ssl)
+                    client = RedisCluster(
+                        startup_nodes=[{"host": n["host"], "port": int(n.get("port", 6379))} for n in nodes],  # type: ignore[misc]
+                        username=username,
+                        password=password,
+                        ssl=ssl,
+                    )
             else:
                 # Attempt redis 4.x style directly
-                client = RedisCluster(startup_nodes=[{"host": n["host"], "port": int(n.get("port", 6379))} for n in nodes], username=username, password=password, ssl=ssl)
+                client = RedisCluster(  # type: ignore[unreachable]
+                    startup_nodes=[{"host": n["host"], "port": int(n.get("port", 6379))} for n in nodes],
+                    username=username,
+                    password=password,
+                    ssl=ssl,
+                )
         except Exception:
             client = None
 

@@ -1,7 +1,4 @@
-import time
 from datetime import datetime, timedelta, timezone
-
-import pytest
 
 from cachine import InMemoryCache
 from cachine.strategies import TagBasedInvalidation
@@ -110,4 +107,3 @@ def test_context_manager_and_ping():
         status = cache.ping()
         assert status["healthy"] is True
         assert cache.ping_ok() is True
-

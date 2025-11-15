@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import inspect
+import logging
+import random
 import threading
 import time
-import random
-from typing import Any, Callable, Optional, NamedTuple
 import uuid
+from collections.abc import Callable
+from typing import Any, NamedTuple, Optional
 
 from ..utils.key_builder import default_key_builder
-import logging
 
 _logger = logging.getLogger(__name__)
+
 
 class KeyContext(NamedTuple):
     module: str
@@ -31,7 +33,7 @@ class _Singleflight:
                 ev = threading.Event()
                 self._events[key] = ev
                 return True, ev  # leader
-            return False, ev    # follower
+            return False, ev  # follower
 
     def release(self, key: str) -> None:
         with self._lock:
@@ -44,14 +46,16 @@ _sf = _Singleflight()
 _MISSING = object()
 
 
-def _build_key(fn: Callable[..., Any], key_builder: Optional[Callable[..., str]], version: Optional[str], args: tuple[Any, ...], kwargs: dict[str, Any]) -> str:
+def _build_key(
+    fn: Callable[..., Any], key_builder: Optional[Callable[..., str]], version: Optional[str], args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> str:
     if key_builder is not None:
         module = fn.__module__
-        qualname = getattr(fn, "__qualname__", fn.__name__)
+        qualname = fn.__qualname__ if hasattr(fn, "__qualname__") else fn.__name__
         ctx = KeyContext(module=module, qualname=qualname, full_name=f"{module}.{qualname}", version=version)
         try:
             # Prefer calling with context first
-            k = key_builder(ctx, *args, **kwargs)  # type: ignore[misc]
+            k = key_builder(ctx, *args, **kwargs)
         except TypeError as e:
             _logger.debug(f"key_builder(ctx, *args, **kwargs) failed for {fn}: {e}")
             try:
@@ -59,10 +63,10 @@ def _build_key(fn: Callable[..., Any], key_builder: Optional[Callable[..., str]]
             except TypeError as e:
                 # key_builder might expect fewer args (e.g., self, x)
                 _logger.debug(f"key_builder(*args, **kwargs) failed for {fn}: {e}")
-                k = key_builder(*args)  # type: ignore[misc]
+                k = key_builder(*args)
     else:
         module = fn.__module__
-        qualname = getattr(fn, "__qualname__", fn.__name__)
+        qualname = fn.__qualname__ if hasattr(fn, "__qualname__") else fn.__name__
         func_name = f"{module}.{qualname}"
 
         # Smart handling for methods: avoid raw self/cls repr in keys
@@ -77,13 +81,13 @@ def _build_key(fn: Callable[..., Any], key_builder: Optional[Callable[..., str]]
                 primitive_types = (int, float, str, bytes, bytearray, bool, tuple, list, dict, set, frozenset)
                 if not isinstance(first, primitive_types):
                     ident: Optional[str] = None
-                    if hasattr(first, "__cache_key__") and callable(getattr(first, "__cache_key__")):
+                    if hasattr(first, "__cache_key__") and callable(first.__cache_key__):
                         try:
-                            ident = str(getattr(first, "__cache_key__")())
+                            ident = str(first.__cache_key__())
                         except Exception:
                             ident = None
                     elif hasattr(first, "cache_key"):
-                        ck = getattr(first, "cache_key")
+                        ck = first.cache_key
                         try:
                             ident = str(ck() if callable(ck) else ck)
                         except Exception:
@@ -106,7 +110,9 @@ def _build_key(fn: Callable[..., Any], key_builder: Optional[Callable[..., str]]
     return k
 
 
-def _compute_ttls(ttl: Optional[int | float], jitter: Optional[int], stale_ttl: Optional[int]) -> tuple[Optional[int], Optional[int], Optional[float]]:
+def _compute_ttls(
+    ttl: Optional[int | float], jitter: Optional[int], stale_ttl: Optional[int]
+) -> tuple[Optional[int], Optional[int], Optional[float]]:
     """Return (store_ttl, fresh_ttl, fresh_until_ts)"""
     if ttl is None:
         return None, None, None
@@ -131,7 +137,7 @@ def cached(
     singleflight: bool = False,
     tags: Optional[Callable[..., list[str]] | list[str]] = None,
     tags_from_result: Optional[Callable[[Any], list[str]]] = None,
-):
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Cache-aside decorator with stale-while-revalidate, tags, and singleflight.
 
     Use this decorator to transparently cache function results using a provided cache.
@@ -176,14 +182,14 @@ def cached(
       tail latency by serving stale during refresh.
     """
 
-    def decorator(fn: Callable[..., Any]):
+    def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
         is_coro = inspect.iscoroutinefunction(fn)
 
         def _finalize_tags(result: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> list[str]:
             out: list[str] = []
             if tags:
                 if callable(tags):
-                    out.extend(tags(*args, **kwargs))  # type: ignore[misc]
+                    out.extend(tags(*args, **kwargs))
                 else:
                     out.extend(tags)
             if tags_from_result and (result is not None or cache_none):
@@ -201,7 +207,7 @@ def cached(
             return unique
 
         def _store_value(key: str, value: Any) -> None:
-            store_ttl, fresh_ttl, fresh_until = _compute_ttls(ttl, jitter, stale_ttl)
+            store_ttl, _fresh_ttl, fresh_until = _compute_ttls(ttl, jitter, stale_ttl)
             if ttl is None or stale_ttl is None:
                 # No stale logic: store raw value
                 cache.set(key, value, ttl=ttl)
@@ -215,20 +221,22 @@ def cached(
             if val is _MISSING:
                 return False, None, None
             if isinstance(val, dict) and val.get("__cachine__") == 1 and "fu" in val:
-                return True, val.get("v"), float(val.get("fu"))
+                fu_val = val.get("fu")
+                return True, val.get("v"), float(fu_val) if fu_val is not None else None
             return True, val, None
 
         async def _aget_cached_entry(key: str) -> tuple[bool, Any, Optional[float]]:
             """Async version of _get_cached_entry."""
-            val = await cache.get(key, default=_MISSING)  # type: ignore[attr-defined]
+            val = await cache.get(key, default=_MISSING)
             if val is _MISSING:
                 return False, None, None
             if isinstance(val, dict) and val.get("__cachine__") == 1 and "fu" in val:
-                return True, val.get("v"), float(val.get("fu"))
+                fu_val = val.get("fu")
+                return True, val.get("v"), float(fu_val) if fu_val is not None else None
             return True, val, None
 
         def _background_refresh(key: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
-            leader, ev = _sf.acquire(key)
+            leader, _ = _sf.acquire(key)
             if not leader:
                 # another refresher is already running
                 return
@@ -246,13 +254,14 @@ def cached(
                 final_tags = _finalize_tags(result, args, kwargs)
                 if final_tags and hasattr(cache, "add_tags"):
                     try:
-                        getattr(cache, "add_tags")(key, final_tags)
+                        cache.add_tags(key, final_tags)
                     except Exception:
                         pass
             finally:
                 _sf.release(key)
 
         if is_coro:
+
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 key = _build_key(fn, key_builder, version, args, kwargs)
                 hit, value, fresh_until = await _aget_cached_entry(key)
@@ -267,7 +276,7 @@ def cached(
                             leader, ev = _sf.acquire(key)
                             if leader:
                                 # spawn task to refresh
-                                async def _refresh():
+                                async def _refresh() -> None:
                                     try:
                                         result = await fn(*args, **kwargs)
                                         if (result is None) and not cache_none:
@@ -279,7 +288,7 @@ def cached(
                                         await cache.set(key, envelope, ttl=store_ttl)
                                         final_tags = _finalize_tags(result, args, kwargs)
                                         if final_tags and hasattr(cache, "add_tags"):
-                                            maybe = getattr(cache, "add_tags")(key, final_tags)
+                                            maybe = cache.add_tags(key, final_tags)
                                             if inspect.isawaitable(maybe):
                                                 await maybe
                                     finally:
@@ -298,6 +307,7 @@ def cached(
                     if not leader:
                         try:
                             import asyncio
+
                             await asyncio.to_thread(ev.wait)
                         except Exception:
                             ev.wait()
@@ -319,7 +329,7 @@ def cached(
                         await cache.set(key, envelope, ttl=store_ttl)
                     final_tags = _finalize_tags(result, args, kwargs)
                     if final_tags and hasattr(cache, "add_tags"):
-                        maybe = getattr(cache, "add_tags")(key, final_tags)
+                        maybe = cache.add_tags(key, final_tags)
                         if inspect.isawaitable(maybe):
                             await maybe
                     return result
@@ -361,7 +371,7 @@ def cached(
                 final_tags = _finalize_tags(result, args, kwargs)
                 if final_tags and hasattr(cache, "add_tags"):
                     try:
-                        getattr(cache, "add_tags")(key, final_tags)
+                        cache.add_tags(key, final_tags)
                     except Exception:
                         pass
                 return result

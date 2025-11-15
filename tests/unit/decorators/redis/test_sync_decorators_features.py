@@ -2,8 +2,6 @@ import hashlib
 import time
 from threading import Barrier, Thread
 
-import pytest
-
 from cachine import cached
 
 
@@ -88,10 +86,11 @@ def test_redis_decorator_singleflight_concurrency(redis_sync_cache):
 
     t1 = Thread(target=worker, args=(1,))
     t2 = Thread(target=worker, args=(2,))
-    t1.start(); t2.start()
+    t1.start()
+    t2.start()
     barrier.wait()
-    t1.join(); t2.join()
+    t1.join()
+    t2.join()
 
     assert results[1] == 3 and results[2] == 3
     assert calls["n"] == 1
-

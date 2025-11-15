@@ -30,4 +30,3 @@ async def test_async_key_builder_receives_context(redis_async_cache):
     assert isinstance(captured["module"], str)
     assert isinstance(captured["qualname"], str) and "add" in captured["qualname"]
     assert isinstance(captured["full_name"], str)
-

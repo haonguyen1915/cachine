@@ -24,7 +24,7 @@ class RedisSentinelCache(RedisCache):
         serializer: Optional[Any] = None,
     ) -> None:
         try:
-            from redis.sentinel import Sentinel  # type: ignore
+            from redis.sentinel import Sentinel
         except Exception as e:  # pragma: no cover
             raise RuntimeError("redis.sentinel is not available; install redis>=4") from e
 
@@ -40,4 +40,3 @@ class RedisSentinelCache(RedisCache):
             client=client,
             serializer=serializer,
         )
-

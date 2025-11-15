@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict, defaultdict
-from typing import Dict, Optional
+from typing import Optional
 
 
 class LRUEviction:
@@ -11,7 +11,7 @@ class LRUEviction:
     """
 
     def __init__(self) -> None:
-        self._order: "OrderedDict[str, None]" = OrderedDict()
+        self._order: OrderedDict[str, None] = OrderedDict()
 
     def note_access(self, key: str) -> None:
         # Move key to the end (most recently used)
@@ -39,8 +39,8 @@ class LFUEviction:
     """
 
     def __init__(self) -> None:
-        self._freq: Dict[str, int] = {}
-        self._buckets: Dict[int, "OrderedDict[str, None]"] = defaultdict(OrderedDict)
+        self._freq: dict[str, int] = {}
+        self._buckets: dict[int, OrderedDict[str, None]] = defaultdict(OrderedDict)
         self._min_freq: Optional[int] = None
 
     def note_access(self, key: str) -> None:
@@ -95,4 +95,3 @@ class LFUEviction:
             self._buckets.pop(self._min_freq, None)
             self._min_freq = min(self._buckets.keys(), default=None)
         return k
-

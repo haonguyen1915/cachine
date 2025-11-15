@@ -19,4 +19,3 @@ class JSONSerializer(Serializer):
             return json.loads(data.decode("utf-8"))
         except Exception as e:  # pragma: no cover - simple passthrough
             raise DeserializationError(str(e)) from e
-

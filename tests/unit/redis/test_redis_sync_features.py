@@ -1,7 +1,4 @@
-import time
 from datetime import datetime, timedelta, timezone
-
-import pytest
 
 from cachine.backends.redis.sync import RedisCache
 from cachine.serializers import JSONSerializer
@@ -75,4 +72,3 @@ def test_incr_decr_ttl_on_create(redis_sync_cache):
     after = cache.ttl("cnt:new")
     if isinstance(before, int) and isinstance(after, int):
         assert after <= before
-

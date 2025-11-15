@@ -1,4 +1,3 @@
-VERSION := $(shell python -c 'import tomli; print(tomli.load(open("pyproject.toml", "rb"))["tool"]["poetry"]["version"])')
 .PHONY: install
 install:
 	@echo "🚀 Installing environment"
@@ -16,9 +15,9 @@ lint:
 	@echo "🚀 Linting with ruff"
 	poetry run ruff check
 	@echo "🚀 Checking with pylint"
-	poetry run pylint polycrud
+	poetry run pylint cachine
 	@echo "🚀 Checking with mypy"
-	poetry run mypy polycrud
+	poetry run mypy cachine
 	@echo "🟢 All checks have passed"
 
 .PHONY: lint_test
@@ -36,7 +35,7 @@ lint_test:
 .PHONY: fix
 fix:
 	@echo "🚀 Fixing with ruff"
-	poetry run ruff check --fix polycrud
+	poetry run ruff check --fix cachine
 	poetry run ruff check --fix tests
 
 .PHONY: format
@@ -47,10 +46,6 @@ format:
 test:
 	@echo "🚀 Running tests with pytest"
 	poetry run pytest tests
-
-.PHONY: run
-run:
-	uvicorn polycrud.__main__:app --host 0.0.0.0 --port 8001
 
 
 

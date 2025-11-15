@@ -8,6 +8,7 @@ from .client import RedisClient
 
 _MISSING = object()
 
+
 class RedisCache:
     """Sync Redis cache scaffold.
 
@@ -100,7 +101,7 @@ class RedisCache:
         except Exception:
             keys = []
         # client may return bytes
-        norm_keys = [k.decode("utf-8") if isinstance(k, (bytes, bytearray)) else k for k in keys]
+        norm_keys = [k.decode("utf-8") if isinstance(k, bytes | bytearray) else k for k in keys]
         if norm_keys:
             try:
                 client.delete_many(*norm_keys)
@@ -112,7 +113,7 @@ class RedisCache:
                         pass
 
     # Enrichment
-    def get_or_set(self, key: str, factory, *, ttl: Optional[int | timedelta] = None, jitter: Optional[int] = None):
+    def get_or_set(self, key: str, factory: Any, *, ttl: Optional[int | timedelta] = None, jitter: Optional[int] = None) -> Any:  # pylint: disable=unused-argument
         # Simple non-atomic get-or-set for scaffold
         sentinel = _MISSING
         val = self.get(key, default=sentinel)
@@ -231,7 +232,7 @@ class RedisCache:
                 members = set()
             for mk in members:
                 # mk may be bytes
-                key_name = mk.decode("utf-8") if isinstance(mk, (bytes, bytearray)) else mk
+                key_name = mk.decode("utf-8") if isinstance(mk, bytes | bytearray) else mk
                 try:
                     client.delete(key_name)
                 except Exception:
@@ -244,7 +245,7 @@ class RedisCache:
         return len(deleted_keys)
 
     # Health / lifecycle
-    def ping(self) -> dict:
+    def ping(self) -> dict[str, Any]:
         return {"healthy": True, "latency_ms": 0.0, "backend": "redis"}
 
     def ping_ok(self) -> bool:
@@ -255,10 +256,10 @@ class RedisCache:
         return None
 
     # Context manager
-    def __enter__(self) -> "RedisCache":
+    def __enter__(self) -> RedisCache:
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> None:
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
         return None
 
     # Internal helpers
@@ -268,11 +269,11 @@ class RedisCache:
         # Lazy import to avoid hard dependency when injected client is used
         try:
             self._client = RedisClient(
-                host=self._cfg["host"],
-                port=self._cfg["port"],
-                db=self._cfg["db"],
+                host=str(self._cfg["host"]),
+                port=int(self._cfg["port"]),
+                db=int(self._cfg["db"]),
                 password=self._password,
-                ssl=self._cfg["ssl"],
+                ssl=bool(self._cfg["ssl"]),
                 decode_responses=False,
             )
             return self._client

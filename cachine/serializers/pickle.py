@@ -19,4 +19,3 @@ class PickleSerializer(Serializer):
             return pickle.loads(data)
         except Exception as e:  # pragma: no cover
             raise DeserializationError(str(e)) from e
-

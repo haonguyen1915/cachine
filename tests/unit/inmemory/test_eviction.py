@@ -1,5 +1,5 @@
 from cachine import InMemoryCache
-from cachine.strategies import LRUEviction, LFUEviction
+from cachine.strategies import LFUEviction, LRUEviction
 
 
 def test_lru_eviction_basic():
@@ -36,4 +36,3 @@ def test_lfu_tie_break_on_recency():
     assert cache.get("x") is None
     assert cache.get("y") == 2
     assert cache.get("z") == 3
-

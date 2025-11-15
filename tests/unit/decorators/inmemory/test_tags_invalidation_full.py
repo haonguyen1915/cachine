@@ -40,4 +40,3 @@ def test_tags_full_invalidation_inmemory():
     assert get_user(1) == {"id": 1, "role": "admin"}
     assert get_user(2) == {"id": 2, "role": "member"}
     assert calls["n"] == 5
-

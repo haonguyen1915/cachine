@@ -41,4 +41,3 @@ async def test_async_decorator_tags_and_invalidation(redis_async_cache):
     assert removed >= 1
     # Recompute after invalidation
     assert await get_user(1) == {"id": 1, "role": "admin"}
-

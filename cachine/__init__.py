@@ -6,11 +6,11 @@ for serializers, middleware, and strategies as documented in INTERFACE.md.
 """
 
 from .backends.inmemory.cache import InMemoryCache
-from .backends.redis.sync import RedisCache
 from .backends.redis.async_ import AsyncRedisCache
+from .backends.redis.sync import RedisCache
 from .decorators.cached import cached
 from .factory import create_cache
-from .utils.logger import logger_setup
+from .utils.logging_utils import logger_setup
 
 __all__ = [
     "InMemoryCache",
@@ -18,5 +18,5 @@ __all__ = [
     "AsyncRedisCache",
     "cached",
     "create_cache",
-    "logger_setup"
+    "logger_setup",
 ]

@@ -57,4 +57,3 @@ async def test_async_args_kwargs_equivalence_with_custom_keybuilder(redis_async_
     assert await add(a=1, b=2) == 3
     assert await add(b=2, a=1) == 3
     assert calls["n"] == 1
-

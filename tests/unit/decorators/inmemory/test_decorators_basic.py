@@ -1,5 +1,6 @@
-from cachine import InMemoryCache, cached
 import hashlib
+
+from cachine import InMemoryCache, cached
 
 
 def test_cached_decorator_full_config_inmemory():

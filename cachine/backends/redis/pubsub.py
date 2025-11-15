@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any, Optional
 
 
 class RedisInvalidationBus:
@@ -34,7 +35,7 @@ class RedisInvalidationBus:
         except Exception:
             pass
 
-    def run_forever(self, handler: Callable[[dict], None]) -> None:  # pragma: no cover - requires live Redis
+    def run_forever(self, handler: Callable[[dict[str, Any]], None]) -> None:  # pragma: no cover - requires live Redis
         try:
             pubsub = self._client.pubsub()
             pubsub.subscribe(self._channel)
@@ -66,7 +67,7 @@ class AsyncRedisInvalidationBus:
         except Exception:
             pass
 
-    async def run_forever(self, handler: Callable[[dict], Any]) -> None:  # pragma: no cover - requires live Redis
+    async def run_forever(self, handler: Callable[[dict[str, Any]], Any]) -> None:  # pragma: no cover - requires live Redis
         try:
             pubsub = self._client.pubsub()
             await pubsub.subscribe(self._channel)
@@ -82,4 +83,3 @@ class AsyncRedisInvalidationBus:
                     await res
         except Exception:
             pass
-

@@ -12,4 +12,3 @@ class Serializer(ABC):
     @abstractmethod
     def loads(self, data: bytes) -> Any:  # pragma: no cover - abstract
         ...
-

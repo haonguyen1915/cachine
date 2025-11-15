@@ -41,7 +41,7 @@ async def test_async_redis_cluster_set_get_incr():
 
     username = os.getenv("REDIS_CLUSTER_USERNAME") or None
     password = os.getenv("REDIS_CLUSTER_PASSWORD") or None
-    ssl = (os.getenv("REDIS_SSL", "false").lower() in {"1", "true", "yes"})
+    ssl = os.getenv("REDIS_SSL", "false").lower() in {"1", "true", "yes"}
 
     try:
         cache = AsyncRedisClusterCache(
@@ -67,4 +67,3 @@ async def test_async_redis_cluster_set_get_incr():
     # Cleanup
     await cache.clear()
     await cache.close()
-

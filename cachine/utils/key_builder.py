@@ -11,4 +11,3 @@ def default_key_builder(func_name: str, *args: Any, **kwargs: Any) -> str:
     if kwargs:
         parts.append("|".join(f"{k}={v}" for k, v in sorted(kwargs.items())))
     return ":".join(parts)
-

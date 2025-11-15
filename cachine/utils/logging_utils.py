@@ -2,15 +2,33 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Dict, Iterable, Literal, Optional
+from collections.abc import Iterable
+from typing import Optional
 
-from colorama import Fore, Style
+try:  # Optional dependency for colored output
+    from colorama import Fore, Style  # pylint: disable=import-error
+    from colorama import init as colorama_init
+
+    colorama_init(autoreset=True)
+except Exception:  # pragma: no cover - graceful degradation
+
+    class _Dummy:
+        RESET_ALL = ""
+
+    class _DummyFore(_Dummy):
+        BLACK = RED = GREEN = YELLOW = BLUE = MAGENTA = CYAN = WHITE = ""
+
+    class _DummyStyle(_Dummy):
+        BRIGHT = DIM = NORMAL = ""
+
+    Fore = _DummyFore()
+    Style = _DummyStyle()
 
 
 class ColorFormatter(logging.Formatter):
     """Colorize log records based on level using colorama when available."""
 
-    LOG_COLORS: Dict[int, str] = {
+    LOG_COLORS: dict[int, str] = {
         logging.DEBUG: Fore.CYAN,
         logging.INFO: Fore.GREEN,
         logging.WARNING: Fore.YELLOW,
@@ -38,14 +56,15 @@ def _parse_level(level: Optional[str | int]) -> int:
     if isinstance(level, int):
         return level
     try:
-        return getattr(logging, str(level).upper())
+        result: int = getattr(logging, str(level).upper())
+        return result
     except Exception:
         return logging.INFO
 
 
-def logger_setup(  # noqa: D401 - simple setup function
+def __logger_setup(  # noqa: D401 - simple setup function
     *,
-    level: Literal["INFO", "DEBUG", "WARNING", "ERROR", "CRITICAL", "NOTSET"] | int | None = None,
+    level: Optional[str | int] = None,
     include: Optional[Iterable[str]] = None,
     fmt: str = "%(asctime)s - %(levelname)s - %(name)s - %(filename)s:%(lineno)d - %(message)s",
 ) -> None:
@@ -81,3 +100,11 @@ def logger_setup(  # noqa: D401 - simple setup function
         logger.handlers.clear()
         logger.addHandler(handler)
         logger.setLevel(resolved_level if name == "root" else logging.WARNING)
+
+
+def logger_setup(**kwargs: Optional[str | int | Iterable[str]]) -> None:
+    """Public alias for __logger_setup to avoid name-mangling by some tools."""
+    __logger_setup(**kwargs)  # type: ignore[arg-type]
+
+
+__all__ = ["ColorFormatter", "__logger_setup", "logger_setup"]

@@ -27,4 +27,3 @@ def test_key_builder_receives_context_redis(redis_sync_cache):
     assert isinstance(captured["module"], str)
     assert isinstance(captured["qualname"], str) and "add" in captured["qualname"]
     assert isinstance(captured["full_name"], str) and captured["module"] in captured["full_name"]
-

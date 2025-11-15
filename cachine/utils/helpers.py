@@ -8,4 +8,3 @@ def to_seconds(ttl: Optional[int | timedelta]) -> Optional[int]:
     if ttl is None:
         return None
     return int(ttl.total_seconds()) if isinstance(ttl, timedelta) else int(ttl)
-

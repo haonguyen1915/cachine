@@ -1,6 +1,7 @@
 import os
 
 import pytest
+
 try:
     import pytest_asyncio  # type: ignore
 except Exception:  # pragma: no cover - optional
@@ -8,11 +9,14 @@ except Exception:  # pragma: no cover - optional
 try:
     from dotenv import load_dotenv  # type: ignore
 except Exception:  # pragma: no cover - optional
+
     def load_dotenv():
         return None
 
+
 try:
     from cachine import logger_setup
+
     load_dotenv()
     logger_setup(level="DEBUG")
 except Exception:
@@ -38,7 +42,7 @@ def _redis_cfg_from_env():
     port = int(os.getenv("REDIS_PORT", os.getenv("CACHE_PORT", "6379")))
     db = int(os.getenv("REDIS_DB", os.getenv("CACHE_DB", "0")))
     password = os.getenv("REDIS_PASSWORD", os.getenv("CACHE_PASSWORD", None)) or None
-    ssl = (os.getenv("REDIS_SSL", os.getenv("CACHE_SSL", "false")).lower() in {"1", "true", "yes"})
+    ssl = os.getenv("REDIS_SSL", os.getenv("CACHE_SSL", "false")).lower() in {"1", "true", "yes"}
     return dict(host=host, port=port, db=db, password=password, ssl=ssl)
 
 
@@ -52,7 +56,7 @@ def redis_sync_cache():
     if not _truthy(os.getenv("RUN_REDIS_TESTS")):
         pytest.skip("RUN_REDIS_TESTS not enabled")
     try:
-        import redis
+        __import__("redis")
     except Exception:
         pytest.skip("redis package is not installed")
 
@@ -61,6 +65,7 @@ def redis_sync_cache():
 
     cfg = _redis_cfg_from_env()
     import uuid
+
     ns = f"ut:{uuid.uuid4().hex}"
     cache = RedisCache(namespace=ns, serializer=JSONSerializer(), **cfg)
     try:
@@ -72,6 +77,7 @@ def redis_sync_cache():
             cache.close()
         except Exception:
             pass
+
 
 if pytest_asyncio:
 

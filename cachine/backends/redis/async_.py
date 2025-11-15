@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# pylint: disable=too-many-public-methods
+import inspect
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
@@ -16,13 +18,13 @@ class AsyncRedisClient:
         decode_responses: bool = False,
     ) -> None:
         try:
-            from redis.asyncio import Redis  # type: ignore
+            from redis.asyncio import Redis
         except Exception as e:  # pragma: no cover
             raise RuntimeError("redis.asyncio not available; install redis>=4") from e
         self._client = Redis(host=host, port=port, db=db, password=password, ssl=ssl, decode_responses=decode_responses)
 
     # Basic ops
-    async def get(self, name: str):
+    async def get(self, name: str) -> Any:
         return await self._client.get(name)
 
     async def set(self, name: str, value: Any, *, ex: Optional[int] = None, px: Optional[int] = None) -> bool:
@@ -53,7 +55,7 @@ class AsyncRedisClient:
         return int(await self._client.incrby(name, delta))
 
     async def eval(self, script: str, numkeys: int, *keys_and_args: Any) -> Any:
-        return await self._client.eval(script, numkeys, *keys_and_args)
+        return await self._client.eval(script, numkeys, *keys_and_args)  # type: ignore[misc]
 
     async def touch(self, name: str) -> int:
         try:
@@ -61,13 +63,13 @@ class AsyncRedisClient:
         except Exception:
             return 1 if await self._client.exists(name) else 0
 
-    async def smembers(self, name: str) -> set:
-        return set(await self._client.smembers(name))
+    async def smembers(self, name: str) -> set:  # type: ignore[valid-type]
+        return set(await self._client.smembers(name))  # type: ignore[misc]
 
     async def sadd(self, name: str, *values: Any) -> int:
-        return int(await self._client.sadd(name, *values))
+        return int(await self._client.sadd(name, *values))  # type: ignore[misc]
 
-    async def scan_iter(self, match: str):
+    async def scan_iter(self, match: str) -> Any:
         async for key in self._client.scan_iter(match=match):
             yield key
 
@@ -82,12 +84,12 @@ class AsyncRedisClient:
     async def publish(self, channel: str, data: str) -> int:
         return int(await self._client.publish(channel, data))
 
-    def pubsub(self):  # pragma: no cover
+    def pubsub(self) -> Any:  # pragma: no cover
         return self._client.pubsub()
 
     async def ping(self) -> bool:
         try:
-            return bool(await self._client.ping())
+            return bool(await self._client.ping())  # type: ignore[misc]
         except Exception:
             return False
 
@@ -171,7 +173,7 @@ class AsyncRedisCache:
         keys = []
         try:
             async for k in client.scan_iter(match=pattern):
-                if isinstance(k, (bytes, bytearray)):
+                if isinstance(k, bytes | bytearray):
                     k = k.decode("utf-8")
                 keys.append(k)
         except Exception:
@@ -187,12 +189,14 @@ class AsyncRedisCache:
                         pass
 
     # Enrichment
-    async def get_or_set(self, key: str, factory, *, ttl: Optional[int | timedelta] = None, jitter: Optional[int] = None):
+    async def get_or_set(self, key: str, factory: Any, *, ttl: Optional[int | timedelta] = None, jitter: Optional[int] = None) -> Any:  # pylint: disable=unused-argument
         sentinel = object()
         val = await self.get(key, default=sentinel)
         if val is not sentinel:
             return val
-        computed = await factory() if callable(factory) and hasattr(factory, "__call__") and hasattr(factory, "__code__") else (factory() if callable(factory) else factory)
+        computed = factory() if callable(factory) else factory
+        if inspect.isawaitable(computed):
+            computed = await computed
         await self.set(key, computed, ttl=ttl)
         return computed
 
@@ -295,7 +299,7 @@ class AsyncRedisCache:
             except Exception:
                 members = set()
             for mk in members:
-                key_name = mk.decode("utf-8") if isinstance(mk, (bytes, bytearray)) else mk
+                key_name = mk.decode("utf-8") if isinstance(mk, bytes | bytearray) else mk
                 try:
                     await client.delete(key_name)
                     deleted += 1
@@ -318,7 +322,7 @@ class AsyncRedisCache:
                 pass
 
     # Health / lifecycle
-    async def ping(self) -> dict:
+    async def ping(self) -> dict[str, Any]:
         ok = False
         try:
             ok = await (await self._require_client()).ping()
@@ -337,21 +341,21 @@ class AsyncRedisCache:
             pass
 
     # Async context manager
-    async def __aenter__(self) -> "AsyncRedisCache":
+    async def __aenter__(self) -> AsyncRedisCache:
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> None:
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
         await self.close()
 
     async def _require_client(self) -> Any:
         if self._client is not None:
             return self._client
         self._client = AsyncRedisClient(
-            host=self._cfg["host"],
-            port=self._cfg["port"],
-            db=self._cfg["db"],
+            host=str(self._cfg["host"]),
+            port=int(self._cfg["port"]),
+            db=int(self._cfg["db"]),
             password=self._password,
-            ssl=self._cfg["ssl"],
+            ssl=bool(self._cfg["ssl"]),
             decode_responses=False,
         )
         return self._client
@@ -376,7 +380,7 @@ class AsyncRedisSentinelCache(AsyncRedisCache):
         serializer: Optional[Any] = None,
     ) -> None:
         try:
-            from redis.asyncio.sentinel import Sentinel  # type: ignore
+            from redis.asyncio.sentinel import Sentinel
         except Exception as e:  # pragma: no cover
             raise RuntimeError("redis.asyncio.sentinel is not available; install redis>=4") from e
 
@@ -409,7 +413,7 @@ class AsyncRedisClusterCache(AsyncRedisCache):
         serializer: Optional[Any] = None,
     ) -> None:
         try:
-            from redis.asyncio.cluster import RedisCluster  # type: ignore
+            from redis.asyncio.cluster import RedisCluster
         except Exception as e:  # pragma: no cover
             raise RuntimeError("redis.asyncio.cluster not available; install redis>=5") from e
 
@@ -417,18 +421,28 @@ class AsyncRedisClusterCache(AsyncRedisCache):
         client = None
         try:
             try:
-                from redis.asyncio.cluster import ClusterNode  # type: ignore
+                from redis.asyncio.cluster import ClusterNode as cluster_node_cls
             except Exception:
-                ClusterNode = None  # type: ignore
+                cluster_node_cls = None  # type: ignore
 
-            if ClusterNode is not None:
-                cluster_nodes = [ClusterNode(n["host"], int(n.get("port", 6379))) for n in nodes]
+            if cluster_node_cls is not None:
+                cluster_nodes = [cluster_node_cls(n["host"], int(n.get("port", 6379))) for n in nodes]
                 try:
-                    client = RedisCluster(nodes=cluster_nodes, username=username, password=password, ssl=ssl)
+                    client = RedisCluster(nodes=cluster_nodes, username=username, password=password, ssl=ssl)  # type: ignore[call-arg]
                 except TypeError:
-                    client = RedisCluster(startup_nodes=[{"host": n["host"], "port": int(n.get("port", 6379))} for n in nodes], username=username, password=password, ssl=ssl)
+                    client = RedisCluster(
+                        startup_nodes=[{"host": n["host"], "port": int(n.get("port", 6379))} for n in nodes],  # type: ignore[misc]
+                        username=username,
+                        password=password,
+                        ssl=ssl,
+                    )
             else:
-                client = RedisCluster(startup_nodes=[{"host": n["host"], "port": int(n.get("port", 6379))} for n in nodes], username=username, password=password, ssl=ssl)
+                client = RedisCluster(  # type: ignore[unreachable]
+                    startup_nodes=[{"host": n["host"], "port": int(n.get("port", 6379))} for n in nodes],
+                    username=username,
+                    password=password,
+                    ssl=ssl,
+                )
         except Exception:
             client = None
 

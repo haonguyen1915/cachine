@@ -8,4 +8,3 @@ def test_metrics_middleware_stats():
     _ = cache.get("k")
     stats = cache.get_stats()
     assert "hit_rate" in stats
-

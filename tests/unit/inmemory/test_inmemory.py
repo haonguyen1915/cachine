@@ -8,4 +8,3 @@ def test_inmemory_delete_exists(inmemory_cache):
     assert inmemory_cache.exists("x") is True
     assert inmemory_cache.delete("x") is True
     assert inmemory_cache.exists("x") is False
-

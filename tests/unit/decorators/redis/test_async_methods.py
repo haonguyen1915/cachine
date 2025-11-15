@@ -57,4 +57,3 @@ async def test_async_classmethod_caching(redis_async_cache):
     assert await Counter.inc(5) == 6
     assert await Counter.inc(5) == 6
     assert Counter.calls == 1
-

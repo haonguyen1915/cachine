@@ -1,7 +1,7 @@
 from .base import Serializer
 from .json import JSONSerializer
-from .pickle import PickleSerializer
 from .msgpack import MsgPackSerializer
+from .pickle import PickleSerializer
 
 __all__ = [
     "Serializer",
@@ -9,4 +9,3 @@ __all__ = [
     "PickleSerializer",
     "MsgPackSerializer",
 ]
-

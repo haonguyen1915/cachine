@@ -7,4 +7,3 @@ def test_tag_invalid_stub():
     # Just ensure methods exist; no real behavior in scaffold
     # async wrappers are not exercised here.
     assert inv is not None
-

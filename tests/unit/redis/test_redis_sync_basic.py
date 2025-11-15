@@ -1,5 +1,3 @@
-from datetime import timedelta
-
 from cachine.serializers import JSONSerializer
 
 
@@ -42,4 +40,3 @@ def test_redis_sync_incr_and_ttl_on_create(redis_sync_cache):
     # 'before' can be None or int; if int, it should remain same or decrease
     if isinstance(before, int) and isinstance(after, int):
         assert after <= before
-

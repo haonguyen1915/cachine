@@ -30,4 +30,3 @@ def test_key_builder_receives_context_inmemory():
     assert isinstance(captured["module"], str) and captured["module"]
     assert isinstance(captured["qualname"], str) and "add" in captured["qualname"]
     assert isinstance(captured["full_name"], str) and captured["module"] in captured["full_name"]
-

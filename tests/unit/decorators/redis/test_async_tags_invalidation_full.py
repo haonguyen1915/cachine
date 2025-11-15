@@ -39,4 +39,3 @@ async def test_async_tags_full_invalidation(redis_async_cache):
     assert await get_user(1) == {"id": 1, "role": "admin"}
     assert await get_user(2) == {"id": 2, "role": "member"}
     assert calls["n"] == 5
-

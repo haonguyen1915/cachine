@@ -40,4 +40,3 @@ async def test_async_redis_tags_invalidation(redis_async_cache):
     removed = await cache.invalidate_tags(["users"])  # type: ignore[attr-defined]
     assert removed >= 1
     assert await cache.get("user:1") is None
-

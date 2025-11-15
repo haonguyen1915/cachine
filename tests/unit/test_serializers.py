@@ -11,4 +11,3 @@ def test_pickle_serializer_roundtrip():
     s = PickleSerializer()
     data = {"a": 1, "b": [2, 3]}
     assert s.loads(s.dumps(data)) == data
-
