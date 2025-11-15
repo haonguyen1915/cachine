@@ -1,7 +1,7 @@
 [project]
 name = "cachine"
 version = "0.1.0-rc.1"
-description = "cache engine"
+description = "A powerful sync/async caching library for Python with tag-based invalidation and Redis backend."
 authors = [
     { name = "haonguyen", email = "vanhao1915@gmail.com" }
 ]
@@ -15,6 +15,13 @@ dependencies = [
     "redis (>=7.0.1,<8.0.0)",
     "colorama (>=0.4.6,<0.5.0)"
 ]
+
+# Project links shown on PyPI
+urls = {
+    "Homepage" = "https://github.com/haonguyen1915/cachine",
+    "Repository" = "https://github.com/haonguyen1915/cachine",
+    "PyPI" = "https://pypi.org/project/cachine/"
+}
 
 
 
@@ -116,4 +123,3 @@ strict_optional = true
 disable_error_code = ["func-returns-value", "call-overload", "override"]
 plugins = ["pydantic.mypy"]
 exclude = []
-
