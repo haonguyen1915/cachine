@@ -52,11 +52,13 @@ def _build_key(fn: Callable[..., Any], key_builder: Optional[Callable[..., str]]
         try:
             # Prefer calling with context first
             k = key_builder(ctx, *args, **kwargs)  # type: ignore[misc]
-        except TypeError:
+        except TypeError as e:
+            _logger.debug(f"key_builder(ctx, *args, **kwargs) failed for {fn}: {e}")
             try:
                 k = key_builder(*args, **kwargs)
-            except TypeError:
+            except TypeError as e:
                 # key_builder might expect fewer args (e.g., self, x)
+                _logger.debug(f"key_builder(*args, **kwargs) failed for {fn}: {e}")
                 k = key_builder(*args)  # type: ignore[misc]
     else:
         module = fn.__module__

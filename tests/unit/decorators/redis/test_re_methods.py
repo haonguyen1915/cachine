@@ -1,9 +1,9 @@
-from cachine import InMemoryCache, cached
+from cachine import cached
 from cachine.decorators.cached import KeyContext
 
 
-def test_instance_method_caching_inmemory():
-    cache = InMemoryCache()
+def test_instance_method_caching_redis(redis_sync_cache):
+    cache = redis_sync_cache
 
     class Service:
         def __init__(self, tenant: str) -> None:
@@ -21,8 +21,8 @@ def test_instance_method_caching_inmemory():
     assert s.calls == 1
 
 
-def test_staticmethod_caching_inmemory():
-    cache = InMemoryCache()
+def test_staticmethod_caching_redis(redis_sync_cache):
+    cache = redis_sync_cache
 
     class Util:
         calls = 0
@@ -38,8 +38,8 @@ def test_staticmethod_caching_inmemory():
     assert Util.calls == 1
 
 
-def test_classmethod_caching_inmemory():
-    cache = InMemoryCache()
+def test_classmethod_caching_redis(redis_sync_cache):
+    cache = redis_sync_cache
 
     class Counter:
         calls = 0
@@ -55,14 +55,13 @@ def test_classmethod_caching_inmemory():
     assert Counter.calls == 1
 
 
-def test_instance_method_default_keybuilder_inmemory():
-    cache = InMemoryCache()
+def test_instance_method_default_keybuilder_redis(redis_sync_cache):
+    cache = redis_sync_cache
 
     class Service:
         def __init__(self) -> None:
             self.calls = 0
 
-        # No key_builder provided: default key uses module.qualname + args (including self)
         @cached(cache, ttl=60)
         def add(self, a: int, b: int) -> int:
             self.calls += 1
@@ -71,19 +70,17 @@ def test_instance_method_default_keybuilder_inmemory():
     s1 = Service()
     s2 = Service()
 
-    # Same instance should cache
     assert s1.add(1, 2) == 3
     assert s1.add(1, 2) == 3
     assert s1.calls == 1
 
-    # Different instance (different self) should not hit s1's cache
     assert s2.add(1, 2) == 3
     assert s2.add(1, 2) == 3
     assert s2.calls == 1
 
 
-def test_instance_method_keybuilder_with_context_inmemory():
-    cache = InMemoryCache()
+def test_instance_method_keybuilder_with_context_rediss(redis_sync_cache):
+    cache = redis_sync_cache
     captured = {}
 
     def kb(ctx: KeyContext, _self: "Service", a: int, b: int) -> str:
@@ -110,8 +107,8 @@ def test_instance_method_keybuilder_with_context_inmemory():
     assert isinstance(captured.get("full_name"), str)
 
 
-def test_staticmethod_with_keybuilder_inmemory():
-    cache = InMemoryCache()
+def test_staticmethod_with_keybuilder_redis(redis_sync_cache):
+    cache = redis_sync_cache
     captured = {}
 
     def kb(ctx: KeyContext, a: int, b: int) -> str:
@@ -136,8 +133,8 @@ def test_staticmethod_with_keybuilder_inmemory():
     assert isinstance(captured.get("full_name"), str)
 
 
-def test_classmethod_with_keybuilder_inmemory():
-    cache = InMemoryCache()
+def test_classmethod_with_keybuilder_redis(redis_sync_cache):
+    cache = redis_sync_cache
     captured = {}
 
     def kb(ctx: KeyContext, _cls: type, x: int) -> str:
