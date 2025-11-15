@@ -102,6 +102,13 @@ class RedisClient:
     def flushdb(self) -> None:
         self._client.flushdb()
 
+    # Pub/Sub
+    def publish(self, channel: str, data: str) -> int:
+        return int(self._client.publish(channel, data))
+
+    def pubsub(self):  # pragma: no cover - requires live Redis
+        return self._client.pubsub()
+
     def ping(self) -> bool:
         try:
             return bool(self._client.ping())
