@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+_logger = logging.getLogger(__name__)
 
 
 def default_key_builder(func_name: str, *args: Any, **kwargs: Any) -> str:
@@ -45,7 +48,12 @@ def template_key_builder(template: str):
     def kb(ctx: Any, *args: Any, **kwargs: Any) -> str:
         try:
             return template.format(*args, ctx=ctx, **kwargs)
-        except Exception:
+        except Exception as e:  # pragma: no cover - logged and falls back
+            _logger.warning(
+                "template_key_builder failed for template %r with error %s; falling back to default key",
+                template,
+                e,
+            )
             # Fallback to a stable default if template formatting fails
             return default_key_builder(getattr(ctx, "full_name", "fn"), *args, **kwargs)
 

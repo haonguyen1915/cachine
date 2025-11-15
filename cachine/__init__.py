@@ -16,7 +16,6 @@ __all__ = [
     "InMemoryCache",
     "RedisCache",
     "AsyncRedisCache",
-    "cached",
     "create_cache",
     "logger_setup",
 ]

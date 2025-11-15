@@ -6,6 +6,7 @@ import random
 import threading
 import time
 import uuid
+import functools
 from collections.abc import Callable
 from typing import Any, NamedTuple, Optional
 
@@ -85,23 +86,63 @@ def _build_key(
         str: Cache key string.
     """
     if key_builder is not None:
-        # Support string templates directly
+        # Support string templates directly; bind positional args to names for convenience
+        template_builder = None
+        bound_kwargs: Optional[dict[str, Any]] = None
         if isinstance(key_builder, str):
-            key_builder = template_key_builder(key_builder)
+            template_builder = template_key_builder(key_builder)
+            # Try to bind positional/keyword args to parameter names so templates like {uid}
+            # work even when the function was called positionally, including kw-only params.
+            try:
+                sig = inspect.signature(fn)
+                ba = sig.bind_partial(*args, **kwargs)
+                merged = dict(ba.arguments)
+                merged.update(kwargs)  # explicit kwargs precedence
+                bound_kwargs = merged
+            except Exception:
+                # Fallback: map positional args to KEYWORD_ONLY parameter names in order
+                try:
+                    sig = inspect.signature(fn)
+                    kwonly_names = [
+                        p.name
+                        for p in sig.parameters.values()
+                        if p.kind == inspect.Parameter.KEYWORD_ONLY and p.name not in kwargs
+                    ]
+                    if kwonly_names and len(args) <= len(kwonly_names):
+                        mapped = {kwonly_names[i]: args[i] for i in range(len(args))}
+                        merged = dict(kwargs)
+                        merged.update(mapped)
+                        bound_kwargs = merged
+                    else:
+                        bound_kwargs = None
+                except Exception:
+                    bound_kwargs = None
+            # Use the wrapped builder moving forward
+            key_builder = template_builder
         module = fn.__module__
         qualname = fn.__qualname__ if hasattr(fn, "__qualname__") else fn.__name__
         ctx = KeyContext(module=module, qualname=qualname, full_name=f"{module}.{qualname}", version=version)
+        k = None
         try:
             # Prefer calling with context first
-            k = key_builder(ctx, *args, **kwargs)
+            if bound_kwargs is not None:
+                k = key_builder(ctx, *args, **bound_kwargs)
+            else:
+                k = key_builder(ctx, *args, **kwargs)
         except TypeError as e:
-            _logger.debug(f"key_builder(ctx, *args, **kwargs) failed for {fn}: {e}")
+            _logger.warning("key_builder(ctx, ...) failed for %r: %s; retrying without ctx", fn, e)
             try:
                 k = key_builder(*args, **kwargs)
-            except TypeError as e:
-                # key_builder might expect fewer args (e.g., self, x)
-                _logger.debug(f"key_builder(*args, **kwargs) failed for {fn}: {e}")
-                k = key_builder(*args)
+            except TypeError as e2:
+                _logger.warning("key_builder(*args, **kwargs) failed for %r: %s; retrying args-only", fn, e2)
+                try:
+                    k = key_builder(*args)
+                except Exception as e3:  # pragma: no cover - rare path
+                    _logger.warning("key_builder final attempt failed for %r: %s; using default key", fn, e3)
+                    k = None
+        if k is None:
+            func_name = f"{module}.{qualname}"
+            k = default_key_builder(func_name, *args, **kwargs)
     else:
         module = fn.__module__
         qualname = fn.__qualname__ if hasattr(fn, "__qualname__") else fn.__name__
@@ -228,6 +269,11 @@ def cached(
 
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
         is_coro = inspect.iscoroutinefunction(fn)
+        sig = None
+        try:
+            sig = inspect.signature(fn)
+        except Exception:
+            sig = None
 
         def _finalize_tags(result: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> list[str]:
             out: list[str] = []
@@ -299,7 +345,28 @@ def cached(
                 # another refresher is already running
                 return
             try:
-                result = fn(*args, **kwargs)
+                try:
+                    result = fn(*args, **kwargs)
+                except TypeError:
+                    if sig is not None:
+                        try:
+                            ba = sig.bind_partial(*args, **kwargs)
+                            result = fn(**ba.arguments)
+                        except Exception:
+                            # Attempt to map positional args to KEYWORD_ONLY parameters
+                            try:
+                                kwonly = [p.name for p in sig.parameters.values() if p.kind == inspect.Parameter.KEYWORD_ONLY]
+                                if len(args) <= len(kwonly):
+                                    merged = dict(kwargs)
+                                    for i, name in enumerate(kwonly[: len(args)]):
+                                        merged[name] = args[i]
+                                    result = fn(**merged)
+                                else:
+                                    raise
+                            except Exception:
+                                raise
+                    else:
+                        raise
                 if inspect.isawaitable(result):
                     # background refresh for async function is not handled in sync path
                     return
@@ -320,6 +387,7 @@ def cached(
 
         if is_coro:
 
+            @functools.wraps(fn)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 key = _build_key(fn, key_builder, version, args, kwargs)
                 hit, value, fresh_until = await _aget_cached_entry(key)
@@ -336,7 +404,27 @@ def cached(
                                 # spawn task to refresh
                                 async def _refresh() -> None:
                                     try:
-                                        result = await fn(*args, **kwargs)
+                                        try:
+                                            result = await fn(*args, **kwargs)
+                                        except TypeError:
+                                            if sig is not None:
+                                                try:
+                                                    ba = sig.bind_partial(*args, **kwargs)
+                                                    result = await fn(**ba.arguments)
+                                                except Exception:
+                                                    # Attempt KEYWORD_ONLY mapping
+                                                    kwonly = [
+                                                        p.name for p in sig.parameters.values() if p.kind == inspect.Parameter.KEYWORD_ONLY
+                                                    ]
+                                                    if len(args) <= len(kwonly):
+                                                        merged = dict(kwargs)
+                                                        for i, name in enumerate(kwonly[: len(args)]):
+                                                            merged[name] = args[i]
+                                                        result = await fn(**merged)
+                                                    else:
+                                                        raise
+                                            else:
+                                                raise
                                         if (result is None) and not cache_none:
                                             return
                                         if condition is not None and not condition(result):
@@ -374,7 +462,27 @@ def cached(
                         if hit2:
                             return value2
                 try:
-                    result = await fn(*args, **kwargs)
+                    try:
+                        result = await fn(*args, **kwargs)
+                    except TypeError:
+                        if sig is not None:
+                            try:
+                                ba = sig.bind_partial(*args, **kwargs)
+                                result = await fn(**ba.arguments)
+                            except Exception:
+                                # Attempt KEYWORD_ONLY mapping
+                                kwonly = [
+                                    p.name for p in sig.parameters.values() if p.kind == inspect.Parameter.KEYWORD_ONLY
+                                ]
+                                if len(args) <= len(kwonly):
+                                    merged = dict(kwargs)
+                                    for i, name in enumerate(kwonly[: len(args)]):
+                                        merged[name] = args[i]
+                                    result = await fn(**merged)
+                                else:
+                                    raise
+                        else:
+                            raise
                     if (result is None) and not cache_none:
                         return result
                     if condition is not None and not condition(result):
@@ -397,6 +505,7 @@ def cached(
 
             return async_wrapper
 
+        @functools.wraps(fn)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             key = _build_key(fn, key_builder, version, args, kwargs)
             hit, value, fresh_until = _get_cached_entry(key)
@@ -420,7 +529,25 @@ def cached(
                     if hit2:
                         return value2
             try:
-                result = fn(*args, **kwargs)
+                try:
+                    result = fn(*args, **kwargs)
+                except TypeError:
+                    if sig is not None:
+                        try:
+                            ba = sig.bind_partial(*args, **kwargs)
+                            result = fn(**ba.arguments)
+                        except Exception:
+                            # Attempt KEYWORD_ONLY mapping
+                            kwonly = [p.name for p in sig.parameters.values() if p.kind == inspect.Parameter.KEYWORD_ONLY]
+                            if len(args) <= len(kwonly):
+                                merged = dict(kwargs)
+                                for i, name in enumerate(kwonly[: len(args)]):
+                                    merged[name] = args[i]
+                                result = fn(**merged)
+                            else:
+                                raise
+                    else:
+                        raise
                 if (result is None) and not cache_none:
                     return result
                 if condition is not None and not condition(result):
