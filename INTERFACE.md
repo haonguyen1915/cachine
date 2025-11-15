@@ -87,7 +87,7 @@ with RedisCache(host="localhost") as cache:
 ## Semantics
 
 - get: `cache.get(key, default=None)` returns `default` on miss; use `exists(key)` to disambiguate missing vs stored `None`.
-- Keys: `str` keys only; normalized as provided (no implicit lowercasing). Recommend a stable prefix/namespace per app.
+ - Keys: `str` keys only; normalized as provided (no implicit lowercasing). Recommend a stable prefix/namespace per app. The decorator’s default auto‑key includes the fully qualified function name (`module.qualname`) plus normalized args/kwargs.
 - TTL: accepts `int` seconds or `datetime.timedelta`. A `ttl <= 0` deletes the key (no-op if missing). TTL rounding is to whole seconds.
 - Deletes: `cache.delete(key)` returns `bool` indicating if the key existed.
 - Counters: `cache.incr(key, delta=1, ttl_on_create=None)` returns the new integer value. `decr(key, delta=1)` is an alias for `incr(delta=-delta)`.
@@ -272,6 +272,7 @@ from cachine import cached, AsyncRedisCache
 
 cache = AsyncRedisCache(host="localhost")
 
+# By default, the auto-key includes module + function name + normalized args/kwargs
 @cached(cache, ttl=300)
 async def get_user(user_id: int):
     # This will be cached for 5 minutes
@@ -304,6 +305,12 @@ from cachine import cached
 @cached(cache, key_builder=lambda user_id, role: f"user:{user_id}:{role}")
 async def get_user_by_role(user_id: int, role: str):
     return await db.fetch_user(user_id, role)
+
+# You can also receive a KeyContext as first argument:
+# from cachine.decorators.cached import KeyContext
+# @cached(cache, key_builder=lambda ctx, user_id, role: f"{ctx.full_name}:{user_id}:{role}")
+# async def get_user_by_role(user_id: int, role: str):
+#     ...
 ```
 
 ### Conditional Caching
@@ -345,7 +352,7 @@ await cache.invalidate_tags(["user:123"])       # invalidate a single user
 ### Decorator Options
 
 - ttl: expiration in seconds or timedelta.
-- key_builder: function to generate custom keys.
+- key_builder: function to generate custom keys. It may accept either the function's args/kwargs, or a first positional KeyContext followed by args/kwargs: `key_builder(ctx, *args, **kwargs)`. `KeyContext` fields: `module`, `qualname`, `full_name`, `version`.
 - version: string/number appended to keys to bust old entries on logic change.
 - cache_none: whether to cache None results (default False recommended).
 - stale_ttl: serve stale entries for up to N seconds while refreshing in background.

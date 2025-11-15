@@ -4,10 +4,17 @@ import inspect
 import threading
 import time
 import random
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, NamedTuple
 
 from ..utils.key_builder import default_key_builder
 from ..utils.helpers import to_seconds
+
+
+class KeyContext(NamedTuple):
+    module: str
+    qualname: str
+    full_name: str
+    version: Optional[str]
 
 
 class _Singleflight:
@@ -37,11 +44,18 @@ _MISSING = object()
 
 def _build_key(fn: Callable[..., Any], key_builder: Optional[Callable[..., str]], version: Optional[str], args: tuple[Any, ...], kwargs: dict[str, Any]) -> str:
     if key_builder is not None:
+        module = fn.__module__
+        qualname = getattr(fn, "__qualname__", fn.__name__)
+        ctx = KeyContext(module=module, qualname=qualname, full_name=f"{module}.{qualname}", version=version)
         try:
-            k = key_builder(*args, **kwargs)
+            # Prefer calling with context first
+            k = key_builder(ctx, *args, **kwargs)  # type: ignore[misc]
         except TypeError:
-            # key_builder might expect fewer args (e.g., self, x)
-            k = key_builder(*args)  # type: ignore[misc]
+            try:
+                k = key_builder(*args, **kwargs)
+            except TypeError:
+                # key_builder might expect fewer args (e.g., self, x)
+                k = key_builder(*args)  # type: ignore[misc]
     else:
         func_name = f"{fn.__module__}.{getattr(fn, '__qualname__', fn.__name__)}"
         k = default_key_builder(func_name, *args, **kwargs)
