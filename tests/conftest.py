@@ -1,12 +1,22 @@
 import os
 
 import pytest
-from dotenv import load_dotenv
+try:
+    import pytest_asyncio  # type: ignore
+except Exception:  # pragma: no cover - optional
+    pytest_asyncio = None  # type: ignore
+try:
+    from dotenv import load_dotenv  # type: ignore
+except Exception:  # pragma: no cover - optional
+    def load_dotenv():
+        return None
 
-from cachine import logger_setup
-
-load_dotenv()
-logger_setup(level="DEBUG")
+try:
+    from cachine import logger_setup
+    load_dotenv()
+    logger_setup(level="DEBUG")
+except Exception:
+    pass
 
 
 @pytest.fixture
@@ -62,3 +72,36 @@ def redis_sync_cache():
             cache.close()
         except Exception:
             pass
+
+if pytest_asyncio:
+
+    @pytest_asyncio.fixture  # type: ignore[misc]
+    async def redis_async_cache():
+        if not _truthy(os.getenv("RUN_REDIS_TESTS")):
+            pytest.skip("RUN_REDIS_TESTS not enabled")
+        try:
+            import redis.asyncio  # type: ignore  # noqa: F401
+        except Exception:
+            pytest.skip("redis.asyncio is not available")
+
+        from cachine.backends.redis.async_ import AsyncRedisCache
+        from cachine.serializers import JSONSerializer
+
+        cfg = _redis_cfg_from_env()
+        import uuid
+
+        ns = f"ut:{uuid.uuid4().hex}"
+        cache = AsyncRedisCache(namespace=ns, serializer=JSONSerializer(), **cfg)
+        try:
+            yield cache
+        finally:
+            try:
+                await cache.clear()
+                await cache.close()
+            except Exception:
+                pass
+else:
+
+    @pytest.fixture
+    def redis_async_cache():
+        pytest.skip("pytest-asyncio not installed; install pytest-asyncio to use redis_async_cache")

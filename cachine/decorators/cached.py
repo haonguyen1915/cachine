@@ -218,6 +218,15 @@ def cached(
                 return True, val.get("v"), float(val.get("fu"))
             return True, val, None
 
+        async def _aget_cached_entry(key: str) -> tuple[bool, Any, Optional[float]]:
+            """Async version of _get_cached_entry."""
+            val = await cache.get(key, default=_MISSING)  # type: ignore[attr-defined]
+            if val is _MISSING:
+                return False, None, None
+            if isinstance(val, dict) and val.get("__cachine__") == 1 and "fu" in val:
+                return True, val.get("v"), float(val.get("fu"))
+            return True, val, None
+
         def _background_refresh(key: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
             leader, ev = _sf.acquire(key)
             if not leader:
@@ -246,7 +255,7 @@ def cached(
         if is_coro:
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 key = _build_key(fn, key_builder, version, args, kwargs)
-                hit, value, fresh_until = _get_cached_entry(key)
+                hit, value, fresh_until = await _aget_cached_entry(key)
                 now = time.time()
                 if hit:
                     if fresh_until is None or now <= fresh_until:
@@ -287,9 +296,13 @@ def cached(
                 if singleflight:
                     leader, ev = _sf.acquire(key)
                     if not leader:
-                        ev.wait()
+                        try:
+                            import asyncio
+                            await asyncio.to_thread(ev.wait)
+                        except Exception:
+                            ev.wait()
                         # read from cache after leader done
-                        hit2, value2, _ = _get_cached_entry(key)
+                        hit2, value2, _ = await _aget_cached_entry(key)
                         if hit2:
                             return value2
                 try:
