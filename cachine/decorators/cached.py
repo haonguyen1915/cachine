@@ -9,7 +9,7 @@ import uuid
 from collections.abc import Callable
 from typing import Any, NamedTuple, Optional
 
-from ..utils.key_builder import default_key_builder
+from ..utils.key_builder import default_key_builder, template_key_builder
 
 _logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ _MISSING = object()
 
 
 def _build_key(
-    fn: Callable[..., Any], key_builder: Optional[Callable[..., str]], version: Optional[str], args: tuple[Any, ...], kwargs: dict[str, Any]
+    fn: Callable[..., Any], key_builder: Optional[Any], version: Optional[str], args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> str:
     """Build a stable cache key for a function call.
 
@@ -85,6 +85,9 @@ def _build_key(
         str: Cache key string.
     """
     if key_builder is not None:
+        # Support string templates directly
+        if isinstance(key_builder, str):
+            key_builder = template_key_builder(key_builder)
         module = fn.__module__
         qualname = fn.__qualname__ if hasattr(fn, "__qualname__") else fn.__name__
         ctx = KeyContext(module=module, qualname=qualname, full_name=f"{module}.{qualname}", version=version)
@@ -141,7 +144,7 @@ def _build_key(
         k = default_key_builder(func_name, *norm_args, **kwargs)
     if version:
         k = f"{k}|v:{version}"
-    _logger.debug(f"Built cache key: {k}")
+    _logger.debug(f"Built cache key: '{k}'")
     return k
 
 
@@ -176,7 +179,7 @@ def cached(
     ttl: Optional[int | float] = None,
     *,
     jitter: Optional[int] = None,
-    key_builder: Optional[Callable[..., str]] = None,
+    key_builder: Optional[Any] = None,
     condition: Optional[Callable[[Any], bool]] = None,
     version: Optional[str] = None,
     cache_none: bool = False,
@@ -194,8 +197,10 @@ def cached(
         cache (Any): Cache instance implementing the sync or async interface.
         ttl (int | float | None): Freshness period in seconds.
         jitter (int | None): Max random seconds added to ``ttl`` to stagger refreshes.
-        key_builder (Callable[..., str] | None): Optional custom key builder; by default,
-            uses a stable key derived from function identity and normalized args/kwargs.
+        key_builder (Callable[..., str] | str | None): Custom key builder; either a callable
+            receiving ``(ctx, *args, **kwargs)`` or a template string using ``str.format`` with
+            placeholders like ``{0}``, ``{uid}``, and ``{ctx.full_name}``. Defaults to a stable
+            key derived from function identity and normalized args/kwargs.
         condition (Callable[[Any], bool] | None): Predicate applied to the result; cache only if True.
         version (str | None): Version string appended to cache key for explicit busting.
         cache_none (bool): Whether to cache ``None`` results. Defaults to False.
