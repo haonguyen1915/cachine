@@ -4,11 +4,11 @@ from typing import Any
 
 import pytest
 
-from cachine import cached
+from cachine import RedisCache, cached
 
 
 @pytest.mark.usefixtures("redis_cache")
-def test_sync_template_key_builder_redis(redis_cache: Any) -> None:
+def test_sync_template_key_builder_redis(redis_cache: RedisCache) -> None:
     cache = redis_cache
 
     @cached(cache=cache, ttl=30, key_builder="{ctx.full_name}:{uid}", version="rv1")

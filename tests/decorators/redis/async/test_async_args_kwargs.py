@@ -3,10 +3,10 @@ from typing import Any
 import pytest
 
 from cachine import cached
-
+from cachine import AsyncRedisCache
 
 @pytest.mark.asyncio
-async def test_async_args_only(a_redis_cache: Any) -> None:
+async def test_async_args_only(a_redis_cache: AsyncRedisCache) -> None:
     cache = a_redis_cache
     calls = {"n": 0}
 
@@ -21,7 +21,7 @@ async def test_async_args_only(a_redis_cache: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_kwargs_only(a_redis_cache: Any) -> None:
+async def test_async_kwargs_only(a_redis_cache: AsyncRedisCache) -> None:
     cache = a_redis_cache
     calls = {"n": 0}
 
@@ -36,7 +36,7 @@ async def test_async_kwargs_only(a_redis_cache: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_args_kwargs_equivalence_with_custom_keybuilder(a_redis_cache: Any) -> None:
+async def test_async_args_kwargs_equivalence_with_custom_keybuilder(a_redis_cache: AsyncRedisCache) -> None:
     cache = a_redis_cache
     calls = {"n": 0}
 

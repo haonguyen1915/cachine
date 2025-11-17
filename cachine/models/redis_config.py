@@ -126,6 +126,10 @@ class RedisClusterConfig:
         password: Optional password for authentication
         username: Optional username for ACL authentication
         ssl: Whether to use SSL/TLS connection
+        socket_timeout: Socket timeout in seconds
+        socket_connect_timeout: Socket connect timeout in seconds
+        retry_on_timeout: Whether to retry on timeout
+        decode_responses: Whether to decode responses to strings
         extra: Additional configuration parameters
 
     Examples:
@@ -139,6 +143,10 @@ class RedisClusterConfig:
     password: str | None = None
     username: str | None = None
     ssl: bool = False
+    socket_timeout: float | None = None
+    socket_connect_timeout: float | None = None
+    retry_on_timeout: bool = False
+    decode_responses: bool = False
     extra: dict[str, Any] = field(default_factory=dict)
 
     def __init__(
@@ -147,6 +155,10 @@ class RedisClusterConfig:
         password: str | None = None,
         username: str | None = None,
         ssl: bool = False,
+        socket_timeout: float | None = None,
+        socket_connect_timeout: float | None = None,
+        retry_on_timeout: bool = False,
+        decode_responses: bool = False,
         extra: dict[str, Any] | None = None,
     ) -> None:
         """Initialize cluster configuration.
@@ -156,6 +168,10 @@ class RedisClusterConfig:
             password: Optional password
             username: Optional username
             ssl: Whether to use SSL
+            socket_timeout: Socket timeout in seconds
+            socket_connect_timeout: Socket connect timeout in seconds
+            retry_on_timeout: Whether to retry on timeout
+            decode_responses: Whether to decode responses to strings
             extra: Additional parameters
         """
         # Convert list to tuple for immutability
@@ -163,6 +179,10 @@ class RedisClusterConfig:
         object.__setattr__(self, "password", password)
         object.__setattr__(self, "username", username)
         object.__setattr__(self, "ssl", ssl)
+        object.__setattr__(self, "socket_timeout", socket_timeout)
+        object.__setattr__(self, "socket_connect_timeout", socket_connect_timeout)
+        object.__setattr__(self, "retry_on_timeout", retry_on_timeout)
+        object.__setattr__(self, "decode_responses", decode_responses)
         object.__setattr__(self, "extra", extra or {})
 
     def to_dict(self) -> dict[str, Any]:
@@ -189,6 +209,18 @@ class RedisClusterConfig:
         if self.username is not None:
             result["username"] = self.username
 
+        if self.socket_timeout is not None:
+            result["socket_timeout"] = self.socket_timeout
+
+        if self.socket_connect_timeout is not None:
+            result["socket_connect_timeout"] = self.socket_connect_timeout
+
+        if self.retry_on_timeout:
+            result["retry_on_timeout"] = self.retry_on_timeout
+
+        if self.decode_responses:
+            result["decode_responses"] = self.decode_responses
+
         # Include extra parameters
         result.update(self.extra)
 
@@ -206,6 +238,10 @@ class RedisSentinelConfig:
         password: Optional password for Redis authentication
         username: Optional username for ACL authentication
         ssl: Whether to use SSL/TLS connection
+        socket_timeout: Socket timeout in seconds
+        socket_connect_timeout: Socket connect timeout in seconds
+        retry_on_timeout: Whether to retry on timeout
+        decode_responses: Whether to decode responses to strings
         extra: Additional configuration parameters
 
     Examples:
@@ -223,6 +259,10 @@ class RedisSentinelConfig:
     password: str | None = None
     username: str | None = None
     ssl: bool = False
+    socket_timeout: float | None = None
+    socket_connect_timeout: float | None = None
+    retry_on_timeout: bool = False
+    decode_responses: bool = False
     extra: dict[str, Any] = field(default_factory=dict)
 
     def __init__(
@@ -233,6 +273,10 @@ class RedisSentinelConfig:
         password: str | None = None,
         username: str | None = None,
         ssl: bool = False,
+        socket_timeout: float | None = None,
+        socket_connect_timeout: float | None = None,
+        retry_on_timeout: bool = False,
+        decode_responses: bool = False,
         extra: dict[str, Any] | None = None,
     ) -> None:
         """Initialize sentinel configuration.
@@ -244,6 +288,10 @@ class RedisSentinelConfig:
             password: Optional password
             username: Optional username
             ssl: Whether to use SSL
+            socket_timeout: Socket timeout in seconds
+            socket_connect_timeout: Socket connect timeout in seconds
+            retry_on_timeout: Whether to retry on timeout
+            decode_responses: Whether to decode responses to strings
             extra: Additional parameters
         """
         object.__setattr__(self, "service_name", service_name)
@@ -252,6 +300,10 @@ class RedisSentinelConfig:
         object.__setattr__(self, "password", password)
         object.__setattr__(self, "username", username)
         object.__setattr__(self, "ssl", ssl)
+        object.__setattr__(self, "socket_timeout", socket_timeout)
+        object.__setattr__(self, "socket_connect_timeout", socket_connect_timeout)
+        object.__setattr__(self, "retry_on_timeout", retry_on_timeout)
+        object.__setattr__(self, "decode_responses", decode_responses)
         object.__setattr__(self, "extra", extra or {})
 
     def to_dict(self) -> dict[str, Any]:
@@ -279,6 +331,18 @@ class RedisSentinelConfig:
 
         if self.username is not None:
             result["username"] = self.username
+
+        if self.socket_timeout is not None:
+            result["socket_timeout"] = self.socket_timeout
+
+        if self.socket_connect_timeout is not None:
+            result["socket_connect_timeout"] = self.socket_connect_timeout
+
+        if self.retry_on_timeout:
+            result["retry_on_timeout"] = self.retry_on_timeout
+
+        if self.decode_responses:
+            result["decode_responses"] = self.decode_responses
 
         # Include extra parameters
         result.update(self.extra)

@@ -3,14 +3,14 @@ import time
 from threading import Barrier, Thread
 from typing import Any
 
-from cachine import cached
+from cachine import RedisCache, cached
 
 
 def _kb(a: int, b: int) -> str:
     return f"sum:{hashlib.sha256(f'{a}:{b}'.encode()).hexdigest()}"
 
 
-def test_redis_decorator_full_config(redis_cache: Any) -> None:
+def test_redis_decorator_full_config(redis_cache: RedisCache) -> None:
     cache = redis_cache
     calls = {"n": 0}
 
@@ -52,7 +52,7 @@ def test_redis_decorator_full_config(redis_cache: Any) -> None:
     assert calls["n"] >= 3
 
 
-def test_redis_decorator_version_isolation(redis_cache: Any) -> None:
+def test_redis_decorator_version_isolation(redis_cache: RedisCache) -> None:
     cache = redis_cache
 
     @cached(cache, ttl=60, key_builder=_kb, version="v1")
@@ -68,7 +68,7 @@ def test_redis_decorator_version_isolation(redis_cache: Any) -> None:
     assert f2(1, 2) == 200
 
 
-def test_redis_decorator_singleflight_concurrency(redis_cache: Any) -> None:
+def test_redis_decorator_singleflight_concurrency(redis_cache: RedisCache) -> None:
     cache = redis_cache
     calls = {"n": 0}
 

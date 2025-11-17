@@ -3,11 +3,11 @@ from typing import Any
 
 import pytest
 
-from cachine import cached
+from cachine import AsyncRedisCache, cached
 
 
 @pytest.mark.asyncio
-async def test_exception_not_cached_and_propagates_async(a_redis_cache: Any) -> None:
+async def test_exception_not_cached_and_propagates_async(a_redis_cache: AsyncRedisCache) -> None:
     cache = a_redis_cache
     state = {"fail": True, "calls": 0}
 
@@ -29,7 +29,7 @@ async def test_exception_not_cached_and_propagates_async(a_redis_cache: Any) -> 
 
 
 @pytest.mark.asyncio
-async def test_stale_ttl_refresh_error_async(a_redis_cache: Any) -> None:
+async def test_stale_ttl_refresh_error_async(a_redis_cache: AsyncRedisCache) -> None:
     cache = a_redis_cache
     state = {"fail": False, "n": 0}
 

@@ -1,9 +1,9 @@
 from typing import Any
 
-from cachine import cached
+from cachine import RedisCache, cached
 
 
-def test_tags_full_invalidation_redis(redis_cache: Any) -> None:
+def test_tags_full_invalidation_redis(redis_cache: RedisCache) -> None:
     cache = redis_cache
     calls = {"n": 0}
 

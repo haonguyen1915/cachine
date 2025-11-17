@@ -2,11 +2,11 @@ from typing import Any
 
 import pytest
 
-from cachine import cached
+from cachine import AsyncRedisCache, cached
 
 
 @pytest.mark.asyncio
-async def test_async_decorator_condition_and_cache_none(a_redis_cache: Any) -> None:
+async def test_async_decorator_condition_and_cache_none(a_redis_cache: AsyncRedisCache) -> None:
     cache = a_redis_cache
     calls = {"n": 0}
 
@@ -24,7 +24,7 @@ async def test_async_decorator_condition_and_cache_none(a_redis_cache: Any) -> N
 
 
 @pytest.mark.asyncio
-async def test_async_decorator_tags_and_invalidation(a_redis_cache: Any) -> None:
+async def test_async_decorator_tags_and_invalidation(a_redis_cache: AsyncRedisCache) -> None:
     cache = a_redis_cache
 
     @cached(

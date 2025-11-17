@@ -24,7 +24,7 @@ perf_enabled = pytest.mark.skipif(not _truthy(os.getenv("RUN_PERF_TESTS")), reas
 
 
 @perf_enabled
-def test_redis_sync_set_get_throughput(redis_cache: Any) -> None:
+def test_redis_sync_set_get_throughput(redis_cache: RedisCache) -> None:
     cache = redis_cache
     N = int(os.getenv("PERF_N_REDIS", os.getenv("PERF_N", "2000")))
 
@@ -42,7 +42,7 @@ def test_redis_sync_set_get_throughput(redis_cache: Any) -> None:
 
 
 @perf_enabled
-def test_redis_sync_cached_hit_latency_improvement(redis_cache: Any) -> None:
+def test_redis_sync_cached_hit_latency_improvement(redis_cache: RedisCache) -> None:
     cache = redis_cache
 
     def slow(x: int) -> int:
@@ -74,7 +74,7 @@ def test_redis_sync_cached_hit_latency_improvement(redis_cache: Any) -> None:
 @perf_enabled
 @pytest.mark.skipif(not HAS_ASYNCIO, reason="pytest-asyncio not installed")
 @pytest.mark.asyncio
-async def test_redis_async_set_get_throughput(a_redis_cache: Any) -> None:
+async def test_redis_async_set_get_throughput(a_redis_cache: AsyncRedisCache) -> None:
     cache = a_redis_cache
     N = int(os.getenv("PERF_N_REDIS", os.getenv("PERF_N", "1500")))
 
@@ -92,7 +92,7 @@ async def test_redis_async_set_get_throughput(a_redis_cache: Any) -> None:
 @perf_enabled
 @pytest.mark.skipif(not HAS_ASYNCIO, reason="pytest-asyncio not installed")
 @pytest.mark.asyncio
-async def test_redis_async_cached_hit_latency_improvement(a_redis_cache: Any) -> None:
+async def test_redis_async_cached_hit_latency_improvement(a_redis_cache: AsyncRedisCache) -> None:
     cache = a_redis_cache
 
     async def slow(x: int) -> int:

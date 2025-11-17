@@ -1,9 +1,9 @@
 from typing import Any
 
-from cachine import cached
+from cachine import cached, RedisCache
 
 
-def test_args_only_redis(redis_cache: Any) -> None:
+def test_args_only_redis(redis_cache: RedisCache) -> None:
     cache = redis_cache
     calls = {"n": 0}
 
@@ -17,7 +17,7 @@ def test_args_only_redis(redis_cache: Any) -> None:
     assert calls["n"] == 1
 
 
-def test_kwargs_only_redis(redis_cache: Any) -> None:
+def test_kwargs_only_redis(redis_cache: RedisCache) -> None:
     cache = redis_cache
     calls = {"n": 0}
 
@@ -31,7 +31,7 @@ def test_kwargs_only_redis(redis_cache: Any) -> None:
     assert calls["n"] == 1
 
 
-def test_args_kwargs_equivalence_with_custom_keybuilder_redis(redis_cache: Any) -> None:
+def test_args_kwargs_equivalence_with_custom_keybuilder_redis(redis_cache: RedisCache) -> None:
     cache = redis_cache
     calls = {"n": 0}
 

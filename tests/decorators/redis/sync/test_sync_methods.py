@@ -1,10 +1,10 @@
 from typing import Any
 
-from cachine import cached
+from cachine import RedisCache, cached
 from cachine.decorators.cached import KeyContext
 
 
-def test_instance_method_caching_redis(redis_cache: Any) -> None:
+def test_instance_method_caching_redis(redis_cache: RedisCache) -> None:
     cache = redis_cache
 
     class Service:
@@ -23,7 +23,7 @@ def test_instance_method_caching_redis(redis_cache: Any) -> None:
     assert s.calls == 1
 
 
-def test_staticmethod_caching_redis(redis_cache: Any) -> None:
+def test_staticmethod_caching_redis(redis_cache: RedisCache) -> None:
     cache = redis_cache
 
     class Util:
@@ -40,7 +40,7 @@ def test_staticmethod_caching_redis(redis_cache: Any) -> None:
     assert Util.calls == 1
 
 
-def test_classmethod_caching_redis(redis_cache: Any) -> None:
+def test_classmethod_caching_redis(redis_cache: RedisCache) -> None:
     cache = redis_cache
 
     class Counter:
@@ -57,7 +57,7 @@ def test_classmethod_caching_redis(redis_cache: Any) -> None:
     assert Counter.calls == 1
 
 
-def test_instance_method_default_keybuilder_redis(redis_cache: Any) -> None:
+def test_instance_method_default_keybuilder_redis(redis_cache: RedisCache) -> None:
     cache = redis_cache
 
     class Service:
@@ -81,7 +81,7 @@ def test_instance_method_default_keybuilder_redis(redis_cache: Any) -> None:
     assert s2.calls == 1
 
 
-def test_instance_method_keybuilder_with_context_rediss(redis_cache: Any) -> None:
+def test_instance_method_keybuilder_with_context_rediss(redis_cache: RedisCache) -> None:
     cache = redis_cache
     captured = {}
 
@@ -109,7 +109,7 @@ def test_instance_method_keybuilder_with_context_rediss(redis_cache: Any) -> Non
     assert isinstance(captured.get("full_name"), str)
 
 
-def test_staticmethod_with_keybuilder_redis(redis_cache: Any) -> None:
+def test_staticmethod_with_keybuilder_redis(redis_cache: RedisCache) -> None:
     cache = redis_cache
     captured = {}
 
@@ -135,7 +135,7 @@ def test_staticmethod_with_keybuilder_redis(redis_cache: Any) -> None:
     assert isinstance(captured.get("full_name"), str)
 
 
-def test_classmethod_with_keybuilder_redis(redis_cache: Any) -> None:
+def test_classmethod_with_keybuilder_redis(redis_cache: RedisCache) -> None:
     cache = redis_cache
     captured = {}
 

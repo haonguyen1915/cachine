@@ -3,10 +3,10 @@ from typing import Any
 
 import pytest
 
-from cachine import cached
+from cachine import RedisCache, cached
 
 
-def test_exception_not_cached_and_propagates_redis(redis_cache: Any) -> None:
+def test_exception_not_cached_and_propagates_redis(redis_cache: RedisCache) -> None:
     cache = redis_cache
     state = {"fail": True, "calls": 0}
 
@@ -27,7 +27,7 @@ def test_exception_not_cached_and_propagates_redis(redis_cache: Any) -> None:
     assert state["calls"] == 2
 
 
-def test_stale_ttl_refresh_error_redis(redis_cache: Any) -> None:
+def test_stale_ttl_refresh_error_redis(redis_cache: RedisCache) -> None:
     cache = redis_cache
     state = {"fail": False, "n": 0}
 

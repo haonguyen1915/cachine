@@ -194,12 +194,22 @@ def _parse_cluster_url(
     if not nodes:
         raise RedisURLParseError("No nodes found in cluster URL")
 
+    # Extract known timeout and config parameters from extra_params
+    socket_timeout = extra_params.pop("socket_timeout", None)
+    socket_connect_timeout = extra_params.pop("socket_connect_timeout", None)
+    retry_on_timeout = extra_params.pop("retry_on_timeout", False)
+    decode_responses = extra_params.pop("decode_responses", False)
+
     # Remaining params go into extra
     return RedisClusterConfig(
         nodes=nodes,
         password=password,
         username=username,
         ssl=ssl,
+        socket_timeout=socket_timeout,
+        socket_connect_timeout=socket_connect_timeout,
+        retry_on_timeout=retry_on_timeout,
+        decode_responses=decode_responses,
         extra=extra_params,
     )
 
@@ -264,6 +274,12 @@ def _parse_sentinel_url(parsed: Any, ssl: bool) -> RedisSentinelConfig:
     extra_query_params = {k: v for k, v in query_params.items() if k != "sentinels"}
     extra_params = _parse_query_params(extra_query_params)
 
+    # Extract known timeout and config parameters from extra_params
+    socket_timeout = extra_params.pop("socket_timeout", None)
+    socket_connect_timeout = extra_params.pop("socket_connect_timeout", None)
+    retry_on_timeout = extra_params.pop("retry_on_timeout", False)
+    decode_responses = extra_params.pop("decode_responses", False)
+
     # Remaining params go into extra
     return RedisSentinelConfig(
         service_name=service_name,
@@ -272,6 +288,10 @@ def _parse_sentinel_url(parsed: Any, ssl: bool) -> RedisSentinelConfig:
         password=password,
         username=username,
         ssl=ssl,
+        socket_timeout=socket_timeout,
+        socket_connect_timeout=socket_connect_timeout,
+        retry_on_timeout=retry_on_timeout,
+        decode_responses=decode_responses,
         extra=extra_params,
     )
 

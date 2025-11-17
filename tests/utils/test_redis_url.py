@@ -160,10 +160,23 @@ class TestParseClusterRedisURL:
         assert config.nodes[2].port == 7002
 
     def test_cluster_url_with_query_params(self) -> None:
-        """Test parsing Redis Cluster URL with query parameters."""
-        config = parse_redis_url("redis://node1:7000,node2:7001?socket_timeout=10")
+        """Test parsing Redis Cluster URL with timeout query parameters."""
+        config = parse_redis_url(
+            "redis://node1:7000,node2:7001?"
+            "socket_timeout=10&socket_connect_timeout=5&retry_on_timeout=true&decode_responses=1"
+        )
         assert isinstance(config, RedisClusterConfig)
-        assert config.extra["socket_timeout"] == 10.0
+        assert config.socket_timeout == 10.0
+        assert config.socket_connect_timeout == 5.0
+        assert config.retry_on_timeout is True
+        assert config.decode_responses is True
+
+    def test_cluster_url_with_extra_params(self) -> None:
+        """Test parsing Redis Cluster URL with extra (non-standard) query parameters."""
+        config = parse_redis_url("redis://node1:7000,node2:7001?custom_param=value&max_connections=100")
+        assert isinstance(config, RedisClusterConfig)
+        assert config.extra["custom_param"] == "value"
+        assert config.extra["max_connections"] == 100.0
 
 
 class TestParseSentinelRedisURL:
@@ -220,11 +233,26 @@ class TestParseSentinelRedisURL:
         assert isinstance(config, RedisSentinelConfig)
         assert config.db == 3
 
-    def test_sentinel_url_with_extra_params(self) -> None:
-        """Test parsing Redis Sentinel URL with extra query parameters."""
-        config = parse_redis_url("redis+sentinel://mymaster/0?sentinels=sentinel1:26379&socket_timeout=5")
+    def test_sentinel_url_with_timeout_params(self) -> None:
+        """Test parsing Redis Sentinel URL with timeout query parameters."""
+        config = parse_redis_url(
+            "redis+sentinel://mymaster/0?"
+            "sentinels=sentinel1:26379&socket_timeout=5&socket_connect_timeout=2&retry_on_timeout=true&decode_responses=yes"
+        )
         assert isinstance(config, RedisSentinelConfig)
-        assert config.extra["socket_timeout"] == 5.0
+        assert config.socket_timeout == 5.0
+        assert config.socket_connect_timeout == 2.0
+        assert config.retry_on_timeout is True
+        assert config.decode_responses is True
+
+    def test_sentinel_url_with_extra_params(self) -> None:
+        """Test parsing Redis Sentinel URL with extra (non-standard) query parameters."""
+        config = parse_redis_url(
+            "redis+sentinel://mymaster/0?sentinels=sentinel1:26379&custom_param=value&health_check_interval=30"
+        )
+        assert isinstance(config, RedisSentinelConfig)
+        assert config.extra["custom_param"] == "value"
+        assert config.extra["health_check_interval"] == 30.0
 
 
 class TestRedisURLErrors:

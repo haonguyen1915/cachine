@@ -2,11 +2,11 @@ from typing import Any
 
 import pytest
 
-from cachine import cached
+from cachine import AsyncRedisCache, cached
 
 
 @pytest.mark.asyncio
-async def test_async_tags_full_invalidation(a_redis_cache: Any) -> None:
+async def test_async_tags_full_invalidation(a_redis_cache: AsyncRedisCache) -> None:
     cache = a_redis_cache
     calls = {"n": 0}
 

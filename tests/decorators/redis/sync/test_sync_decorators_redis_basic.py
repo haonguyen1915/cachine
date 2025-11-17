@@ -2,10 +2,10 @@ import time
 from threading import Barrier, Thread
 from typing import Any
 
-from cachine import cached
+from cachine import RedisCache, cached
 
 
-def test_redis_cached_basic(redis_cache: Any) -> None:
+def test_redis_cached_basic(redis_cache: RedisCache) -> None:
     calls = {"n": 0}
 
     @cached(redis_cache, ttl=30)
@@ -18,7 +18,7 @@ def test_redis_cached_basic(redis_cache: Any) -> None:
     assert calls["n"] == 1
 
 
-def test_redis_singleflight(redis_cache: Any) -> None:
+def test_redis_singleflight(redis_cache: RedisCache) -> None:
     calls = {"n": 0}
 
     @cached(redis_cache, ttl=30, singleflight=True)
@@ -46,7 +46,7 @@ def test_redis_singleflight(redis_cache: Any) -> None:
     assert calls["n"] == 1
 
 
-def test_redis_stale_ttl_refresh(redis_cache: Any) -> None:
+def test_redis_stale_ttl_refresh(redis_cache: RedisCache) -> None:
     calls = {"n": 0}
 
     @cached(redis_cache, ttl=1, stale_ttl=5, singleflight=True)

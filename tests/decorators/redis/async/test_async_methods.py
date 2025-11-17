@@ -2,11 +2,11 @@ from typing import Any
 
 import pytest
 
-from cachine import cached
+from cachine import AsyncRedisCache, cached
 
 
 @pytest.mark.asyncio
-async def test_async_instance_method_caching(a_redis_cache: Any) -> None:
+async def test_async_instance_method_caching(a_redis_cache: AsyncRedisCache) -> None:
     cache = a_redis_cache
 
     class Service:
@@ -26,7 +26,7 @@ async def test_async_instance_method_caching(a_redis_cache: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_staticmethod_caching(a_redis_cache: Any) -> None:
+async def test_async_staticmethod_caching(a_redis_cache: AsyncRedisCache) -> None:
     cache = a_redis_cache
 
     class Util:
@@ -44,7 +44,7 @@ async def test_async_staticmethod_caching(a_redis_cache: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_classmethod_caching(a_redis_cache: Any) -> None:
+async def test_async_classmethod_caching(a_redis_cache: AsyncRedisCache) -> None:
     cache = a_redis_cache
 
     class Counter:
