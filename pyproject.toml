@@ -17,11 +17,10 @@ dependencies = [
 ]
 
 # Project links shown on PyPI
-urls = {
-    "Homepage" = "https://github.com/haonguyen1915/cachine",
-    "Repository" = "https://github.com/haonguyen1915/cachine",
-    "PyPI" = "https://pypi.org/project/cachine/"
-}
+[project.urls]
+Homepage = "https://github.com/haonguyen1915/cachine"
+Repository = "https://github.com/haonguyen1915/cachine"
+PyPI = "https://pypi.org/project/cachine/"
 
 
 

@@ -37,9 +37,20 @@ class RedisCache:
         namespace: Optional[str] = None,
         client: Optional[Any] = None,
         serializer: Optional[Any] = None,
+        socket_timeout: Optional[float] = None,
+        socket_connect_timeout: Optional[float] = None,
+        retry_on_timeout: bool = False,
     ) -> None:
         self._ns = f"{namespace}:" if namespace else ""
-        self._cfg = {"host": host, "port": port, "db": db, "ssl": ssl}
+        self._cfg = {
+            "host": host,
+            "port": port,
+            "db": db,
+            "ssl": ssl,
+            "socket_timeout": socket_timeout,
+            "socket_connect_timeout": socket_connect_timeout,
+            "retry_on_timeout": retry_on_timeout,
+        }
         self._password = password
         self._client = client  # injected client for testing or custom usage
         self._serializer = serializer
@@ -444,6 +455,9 @@ class RedisCache:
                 password=self._password,
                 ssl=bool(self._cfg["ssl"]),
                 decode_responses=False,
+                socket_timeout=self._cfg.get("socket_timeout"),
+                socket_connect_timeout=self._cfg.get("socket_connect_timeout"),
+                retry_on_timeout=bool(self._cfg.get("retry_on_timeout", False)),
             )
             return self._client
         except Exception as e:  # pragma: no cover

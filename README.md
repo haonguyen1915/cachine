@@ -641,7 +641,11 @@ config = {
     "port": 6379,
     "db": 0,
     "namespace": "myapp",
-    "password": "optional-password"
+    "password": "optional-password",
+    # Optional connection tuning
+    "socket_timeout": 2.5,            # seconds for read/write operations
+    "socket_connect_timeout": 1.0,    # seconds for initial TCP connect
+    "retry_on_timeout": true          # let redis-py retry on timeouts
 }
 
 # Create sync cache
@@ -662,6 +666,10 @@ CACHE_DB=0
 CACHE_PASSWORD=your-password
 CACHE_SSL=false
 CACHE_NAMESPACE=myapp
+# Optional timeouts
+CACHE_SOCKET_TIMEOUT=2.5
+CACHE_SOCKET_CONNECT_TIMEOUT=1.0
+CACHE_RETRY_ON_TIMEOUT=true
 ```
 
 ```python
@@ -784,6 +792,12 @@ else:
 # Full health check
 health = cache.ping()
 print(health)  # {'healthy': True, 'latency_ms': 1.2, 'backend': 'redis'}
+
+# Tune client timeouts (sync/async)
+from cachine import RedisCache, AsyncRedisCache
+
+rc = RedisCache(host="localhost", socket_timeout=2.5, socket_connect_timeout=1.0, retry_on_timeout=True)
+arc = AsyncRedisCache(host="localhost", socket_timeout=2.5, socket_connect_timeout=1.0, retry_on_timeout=True)
 ```
 
 ### Serialization Errors

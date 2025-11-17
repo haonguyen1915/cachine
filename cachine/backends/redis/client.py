@@ -28,6 +28,9 @@ class RedisClient:
         password: Optional[str] = None,
         ssl: bool = False,
         decode_responses: bool = False,
+        socket_timeout: Optional[float] = None,
+        socket_connect_timeout: Optional[float] = None,
+        retry_on_timeout: bool = False,
     ) -> None:
         try:
             import redis
@@ -41,6 +44,9 @@ class RedisClient:
             password=password,
             ssl=ssl,
             decode_responses=decode_responses,
+            socket_timeout=socket_timeout,
+            socket_connect_timeout=socket_connect_timeout,
+            retry_on_timeout=retry_on_timeout,
         )
 
     # Basic ops

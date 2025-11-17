@@ -273,6 +273,23 @@ def cached(
         except Exception:
             sig = None
 
+        # Pass-through mode: when cache is None, do not attempt any caching.
+        # Simply call the wrapped function (sync or async) preserving metadata.
+        if cache is None:
+            if is_coro:
+
+                @functools.wraps(fn)
+                async def _async_passthrough(*args: Any, **kwargs: Any) -> Any:
+                    return await fn(*args, **kwargs)
+
+                return _async_passthrough
+
+            @functools.wraps(fn)
+            def _sync_passthrough(*args: Any, **kwargs: Any) -> Any:
+                return fn(*args, **kwargs)
+
+            return _sync_passthrough
+
         def _finalize_tags(result: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> list[str]:
             out: list[str] = []
             if tags:

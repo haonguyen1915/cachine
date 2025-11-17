@@ -8,6 +8,13 @@ from .backends.redis.async_ import AsyncRedisCache
 from .backends.redis.sync import RedisCache
 
 
+def _parse_float(v: str | None) -> float | None:
+    try:
+        return float(v) if v is not None and v != "" else None
+    except Exception:
+        return None
+
+
 class _CacheFactory:
     """Factory for constructing caches from dict or environment configuration."""
 
@@ -37,6 +44,9 @@ class _CacheFactory:
                 "password": config.get("password"),
                 "ssl": config.get("ssl", False),
                 "namespace": config.get("namespace"),
+                "socket_timeout": config.get("socket_timeout"),
+                "socket_connect_timeout": config.get("socket_connect_timeout"),
+                "retry_on_timeout": config.get("retry_on_timeout", False),
             }
             if mode == "async":
                 return AsyncRedisCache(**common)
@@ -65,6 +75,9 @@ class _CacheFactory:
                 "password": os.getenv("CACHE_PASSWORD") or None,
                 "ssl": os.getenv("CACHE_SSL", "false").lower() in {"1", "true", "yes"},
                 "namespace": os.getenv("CACHE_NAMESPACE"),
+                "socket_timeout": _parse_float(os.getenv("CACHE_SOCKET_TIMEOUT")),
+                "socket_connect_timeout": _parse_float(os.getenv("CACHE_SOCKET_CONNECT_TIMEOUT")),
+                "retry_on_timeout": os.getenv("CACHE_RETRY_ON_TIMEOUT", "false").lower() in {"1", "true", "yes"},
             }
             if mode == "async":
                 return AsyncRedisCache(**cfg)  # type: ignore[arg-type]
