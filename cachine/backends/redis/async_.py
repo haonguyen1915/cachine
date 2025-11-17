@@ -2,12 +2,21 @@ from __future__ import annotations
 
 # pylint: disable=too-many-public-methods
 import inspect
+import json
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
+from .types import AsyncRedisClientProto
 from ...core.types import HealthStatus
 from ...models.redis_config import RedisClusterConfig, RedisConfig, RedisSentinelConfig, RedisSingleConfig
-from .types import AsyncRedisClientProto
+
+try:
+    from redis.asyncio import Redis
+    from redis.asyncio.cluster import ClusterNode, RedisCluster
+    from redis.asyncio.sentinel import Sentinel
+except Exception as e:  # pragma: no cover
+    raise RuntimeError("redis.asyncio not available; install redis>=4") from e
 
 
 class AsyncRedisCache:
@@ -20,6 +29,8 @@ class AsyncRedisCache:
         config (RedisConfig): Redis configuration object (RedisSingleConfig, RedisClusterConfig, or RedisSentinelConfig).
         namespace (str | None): Optional namespace prefix.
         serializer (Any | None): Default serializer for values.
+        pubsub_channel (str | None): Pub/Sub channel for tag invalidation events. Defaults to "cachine:invalidate".
+        auto_publish_invalidations (bool): Automatically publish tag invalidation events. Defaults to False.
 
     Examples:
         >>> from cachine.models.redis_config import RedisSingleConfig
@@ -36,6 +47,8 @@ class AsyncRedisCache:
         *,
         namespace: Optional[str] = None,
         serializer: Optional[Any] = None,
+        pubsub_channel: Optional[str] = "cachine:invalidate",
+        auto_publish_invalidations: bool = False,
     ) -> None:
         # Typed client attribute
         self._client: AsyncRedisClientProto
@@ -52,6 +65,8 @@ class AsyncRedisCache:
         self._config = config
         self._ns = f"{namespace}:" if namespace else ""
         self._serializer = serializer
+        self._pubsub_channel = pubsub_channel
+        self._auto_publish_invalidations = auto_publish_invalidations
 
     # Basic ops
     async def get(self, key: str, default: Any = None, *, serializer: Any = None) -> Any:
@@ -343,11 +358,12 @@ class AsyncRedisCache:
         return await self.incr(key, delta=-int(delta))
 
     # Tags
-    async def invalidate_tags(self, tags: list[str]) -> int:
+    async def invalidate_tags(self, tags: list[str], *, publish: Optional[bool] = None) -> int:
         """Invalidate keys by tags.
 
         Args:
             tags (list[str]): Tags to invalidate.
+            publish (bool | None): Whether to publish invalidation event. If None, uses auto_publish_invalidations setting.
 
         Returns:
             int: Number of keys deleted across all tags.
@@ -371,6 +387,12 @@ class AsyncRedisCache:
                 await client.delete(tkey)
             except Exception:
                 pass
+
+        # Publish invalidation event if enabled
+        should_publish = publish if publish is not None else self._auto_publish_invalidations
+        if should_publish and self._pubsub_channel:
+            await self.publish_invalidation(tags)
+
         return deleted
 
     async def add_tags(self, key: str, tags: list[str]) -> None:
@@ -391,6 +413,78 @@ class AsyncRedisCache:
                 await client.sadd(tkey, k)
             except Exception:
                 pass
+
+    # Pub/Sub
+    async def publish_invalidation(self, tags: list[str]) -> None:
+        """Publish a tag invalidation event to the Pub/Sub channel.
+
+        Args:
+            tags (list[str]): Tags to include in the invalidation event.
+
+        Returns:
+            None
+
+        Examples:
+            >>> await cache.publish_invalidation(["user:123", "product:456"])
+        """
+        if not self._pubsub_channel:
+            return
+
+        payload = {
+            "type": "invalidate_tags",
+            "namespace": self._ns.rstrip(":") if self._ns else None,
+            "tags": list(tags),
+        }
+        try:
+            data = json.dumps(payload)
+            await self._client.publish(self._pubsub_channel, data)
+        except Exception:
+            pass
+
+    async def subscribe_invalidations(
+        self,
+        handler: Callable[[dict[str, Any]], Any],
+        *,
+        channel: Optional[str] = None,
+    ) -> None:
+        """Subscribe to tag invalidation events and process them with a handler.
+
+        This is a blocking operation that listens for invalidation events on the
+        Pub/Sub channel and invokes the handler for each valid event.
+
+        Args:
+            handler (Callable[[dict[str, Any]], Any]): Function called with each event.
+                Can be sync or async. Receives event dict with keys: type, namespace, tags.
+            channel (str | None): Override the Pub/Sub channel. Uses instance channel if None.
+
+        Returns:
+            None
+
+        Examples:
+            >>> async def handle_event(event):
+            ...     tags = event.get("tags", [])
+            ...     print(f"Invalidating tags: {tags}")
+            >>> await cache.subscribe_invalidations(handle_event)
+        """
+        target_channel = channel or self._pubsub_channel
+        if not target_channel:
+            return
+
+        try:
+            pubsub = self._client.pubsub()
+            await pubsub.subscribe(target_channel)
+            async for msg in pubsub.listen():
+                if not msg or msg.get("type") != "message":
+                    continue
+                try:
+                    event = json.loads(msg.get("data"))
+                except Exception:
+                    continue
+                res = handler(event)
+                if inspect.isawaitable(res):
+                    await res
+        except Exception:
+            pass
 
     # Health / lifecycle
     async def ping(self) -> HealthStatus:
@@ -418,7 +512,11 @@ class AsyncRedisCache:
     async def close(self) -> None:
         """Close underlying client (async)."""
         try:
-            await self._client.close()
+            # Try aclose() first (redis-py v5+), fall back to close() for older versions
+            if hasattr(self._client, "aclose"):
+                await self._client.aclose()
+            else:
+                await self._client.close()
         except Exception:
             pass
 
@@ -435,8 +533,8 @@ class AsyncRedisCache:
         """Exit async context manager and close connections."""
         await self.close()
 
-    # Internal helpers
-    def _create_single_client(self, config: RedisSingleConfig) -> AsyncRedisClientProto:
+    @staticmethod
+    def _create_single_client(config: RedisSingleConfig) -> Redis:
         """Create client for single Redis instance.
 
         Args:
@@ -445,10 +543,6 @@ class AsyncRedisCache:
         Returns:
             Any: AsyncRedisClient wrapper instance.
         """
-        try:
-            from redis.asyncio import Redis
-        except Exception as e:  # pragma: no cover
-            raise RuntimeError("redis.asyncio not available; install redis>=4") from e
 
         kwargs: dict[str, Any] = {
             "host": config.host,
@@ -474,7 +568,8 @@ class AsyncRedisCache:
 
         return Redis(**kwargs)
 
-    def _create_cluster_client(self, config: RedisClusterConfig) -> AsyncRedisClientProto:
+    @staticmethod
+    def _create_cluster_client(config: RedisClusterConfig) -> RedisCluster:
         """Create client for Redis Cluster.
 
         Args:
@@ -486,11 +581,6 @@ class AsyncRedisCache:
         Raises:
             RuntimeError: If redis cluster client is not available.
         """
-        try:
-            from redis.asyncio.cluster import RedisCluster
-        except Exception as e:
-            raise RuntimeError("redis.asyncio.cluster not available; install redis>=5") from e
-
         # Convert nodes to dict format for redis-py
         nodes = [{"host": node.host, "port": node.port} for node in config.nodes]
 
@@ -515,7 +605,7 @@ class AsyncRedisCache:
                     )
             else:
                 client = RedisCluster(  # type: ignore[unreachable]
-                    startup_nodes=[{"host": n["host"], "port": int(n.get("port", 6379))} for n in nodes],
+                    startup_nodes=[ClusterNode(**{"host": n["host"], "port": int(n.get("port", 6379))}) for n in nodes],
                     username=config.username,
                     password=config.password,
                     ssl=config.ssl,
@@ -535,7 +625,8 @@ class AsyncRedisCache:
 
         return client
 
-    def _create_sentinel_client(self, config: RedisSentinelConfig) -> AsyncRedisClientProto:
+    @staticmethod
+    def _create_sentinel_client(config: RedisSentinelConfig) -> Redis:
         """Create client for Redis Sentinel.
 
         Args:
@@ -547,11 +638,6 @@ class AsyncRedisCache:
         Raises:
             RuntimeError: If redis.asyncio.sentinel is not available.
         """
-        try:
-            from redis.asyncio.sentinel import Sentinel
-        except Exception as e:
-            raise RuntimeError("redis.asyncio.sentinel is not available; install redis>=4") from e
-
         sentinel = Sentinel(list(config.sentinels), socket_timeout=2, ssl=config.ssl)
         return sentinel.master_for(
             config.service_name,

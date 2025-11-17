@@ -1,12 +1,21 @@
 from __future__ import annotations
 
+import json
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
+from .types import SyncRedisClientProto
 from ...core.types import HealthStatus
 from ...models.redis_config import RedisClusterConfig, RedisConfig, RedisSentinelConfig, RedisSingleConfig
 from ...utils.helpers import to_seconds
-from .types import SyncRedisClientProto
+
+try:
+    from redis import RedisCluster, Redis
+    from redis.cluster import ClusterNode
+    from redis.sentinel import Sentinel
+except Exception as e:
+    raise RuntimeError("redis cluster client not available; install redis>=4 with cluster support") from e
 
 _MISSING = object()
 
@@ -21,6 +30,8 @@ class RedisCache:
         config (RedisConfig): Redis configuration object (RedisSingleConfig, RedisClusterConfig, or RedisSentinelConfig).
         namespace (str | None): Optional key namespace prefix, e.g. ``"app:"``.
         serializer (Any | None): Default serializer for values supporting ``dumps``/``loads``.
+        pubsub_channel (str | None): Pub/Sub channel for tag invalidation events. Defaults to "cachine:invalidate".
+        auto_publish_invalidations (bool): Automatically publish tag invalidation events. Defaults to False.
 
     Examples:
         >>> from cachine.models.redis_config import RedisSingleConfig
@@ -37,6 +48,8 @@ class RedisCache:
         *,
         namespace: Optional[str] = None,
         serializer: Optional[Any] = None,
+        pubsub_channel: Optional[str] = "cachine:invalidate",
+        auto_publish_invalidations: bool = False,
     ) -> None:
         # Typed client attribute
         self._client: SyncRedisClientProto
@@ -53,6 +66,8 @@ class RedisCache:
         self._config = config
         self._ns = f"{namespace}:" if namespace else ""
         self._serializer = serializer
+        self._pubsub_channel = pubsub_channel
+        self._auto_publish_invalidations = auto_publish_invalidations
 
     # Basic ops (stubs)
     def get(self, key: str, default: Any = None, *, serializer: Any = None) -> Any:
@@ -367,11 +382,12 @@ class RedisCache:
         return self.incr(key, delta=-int(delta))
 
     # Tags
-    def invalidate_tags(self, tags: list[str]) -> int:
+    def invalidate_tags(self, tags: list[str], *, publish: Optional[bool] = None) -> int:
         """Invalidate keys by tags.
 
         Args:
             tags (list[str]): Tags to invalidate.
+            publish (bool | None): Whether to publish invalidation event. If None, uses auto_publish_invalidations setting.
 
         Returns:
             int: Number of unique keys deleted across all tags.
@@ -396,6 +412,12 @@ class RedisCache:
                 client.delete(tkey)
             except Exception:
                 pass
+
+        # Publish invalidation event if enabled
+        should_publish = publish if publish is not None else self._auto_publish_invalidations
+        if should_publish and self._pubsub_channel:
+            self.publish_invalidation(tags)
+
         return len(deleted_keys)
 
     # Health / lifecycle
@@ -442,7 +464,8 @@ class RedisCache:
         """
         return self._client
 
-    def _create_single_client(self, config: RedisSingleConfig) -> SyncRedisClientProto:
+    @staticmethod
+    def _create_single_client(config: RedisSingleConfig) -> Redis:
         """Create client for single Redis instance.
 
         Args:
@@ -451,11 +474,6 @@ class RedisCache:
         Returns:
             Any: RedisClient wrapper instance.
         """
-        try:
-            import redis
-        except Exception as e:  # pragma: no cover
-            raise RuntimeError("redis package not installed. Please install redis (pip install redis).") from e
-
         # Build kwargs from config, keeping bytes-oriented responses by default
         kwargs: dict[str, Any] = {
             "host": config.host,
@@ -479,16 +497,17 @@ class RedisCache:
         for k, v in config.extra.items():
             kwargs.setdefault(k, v)
 
-        return redis.Redis(**kwargs)
+        return Redis(**kwargs)
 
-    def _create_cluster_client(self, config: RedisClusterConfig) -> SyncRedisClientProto:
+    @staticmethod
+    def _create_cluster_client(config: RedisClusterConfig) -> RedisCluster:
         """Create client for Redis Cluster.
 
         Args:
             config (RedisClusterConfig): Cluster configuration.
 
         Returns:
-            Any: RedisCluster client instance.
+            SyncRedisClientProto: RedisCluster-compatible client instance.
 
         Raises:
             RuntimeError: If redis cluster client is not available.
@@ -502,40 +521,24 @@ class RedisCache:
         nodes = [{"host": node.host, "port": node.port} for node in config.nodes]
 
         # Try different redis-py API versions
-        try:
-            from redis.cluster import ClusterNode
 
-            cluster_nodes = [ClusterNode(n["host"], n["port"]) for n in nodes]
-            try:
-                return RedisCluster(
-                    nodes=cluster_nodes,
-                    username=config.username,
-                    password=config.password,
-                    ssl=config.ssl,
-                )
-            except TypeError:
-                return RedisCluster(  # type: ignore[call-arg]
-                    startup_nodes=nodes,  # type: ignore[arg-type]
-                    username=config.username,
-                    password=config.password,
-                    ssl=config.ssl,
-                )
-        except ImportError:
-            return RedisCluster(  # type: ignore[call-arg]
-                startup_nodes=nodes,  # type: ignore[arg-type]
-                username=config.username,
-                password=config.password,
-                ssl=config.ssl,
-            )
+        cluster_nodes = [ClusterNode(n["host"], n["port"]) for n in nodes]
+        return RedisCluster(
+            startup_nodes=cluster_nodes,
+            username=config.username,
+            password=config.password,
+            ssl=config.ssl
+        )
 
-    def _create_sentinel_client(self, config: RedisSentinelConfig) -> SyncRedisClientProto:
+    @staticmethod
+    def _create_sentinel_client(config: RedisSentinelConfig) -> Redis:
         """Create client for Redis Sentinel.
 
         Args:
             config (RedisSentinelConfig): Sentinel configuration.
 
         Returns:
-            Any: Redis master client from Sentinel.
+            SyncRedisClientProto: Redis master client from Sentinel.
 
         Raises:
             RuntimeError: If redis.sentinel is not available.
@@ -572,3 +575,75 @@ class RedisCache:
                 client.sadd(tkey, k)
             except Exception:
                 pass
+
+    # Pub/Sub
+    def publish_invalidation(self, tags: list[str]) -> None:
+        """Publish a tag invalidation event to the Pub/Sub channel.
+
+        Args:
+            tags (list[str]): Tags to include in the invalidation event.
+
+        Returns:
+            None
+
+        Examples:
+            >>> cache.publish_invalidation(["user:123", "product:456"])
+        """
+        if not self._pubsub_channel:
+            return
+
+        payload = {
+            "type": "invalidate_tags",
+            "namespace": self._ns.rstrip(":") if self._ns else None,
+            "tags": list(tags),
+        }
+        try:
+            data = json.dumps(payload)
+            client = self._require_client()
+            client.publish(self._pubsub_channel, data)
+        except Exception:
+            pass
+
+    def subscribe_invalidations(
+        self,
+        handler: Callable[[dict[str, Any]], None],
+        *,
+        channel: Optional[str] = None,
+    ) -> None:
+        """Subscribe to tag invalidation events and process them with a handler.
+
+        This is a blocking operation that listens for invalidation events on the
+        Pub/Sub channel and invokes the handler for each valid event.
+
+        Args:
+            handler (Callable[[dict[str, Any]], None]): Function called with each event.
+                Receives event dict with keys: type, namespace, tags.
+            channel (str | None): Override the Pub/Sub channel. Uses instance channel if None.
+
+        Returns:
+            None
+
+        Examples:
+            >>> def handle_event(event):
+            ...     tags = event.get("tags", [])
+            ...     print(f"Invalidating tags: {tags}")
+            >>> cache.subscribe_invalidations(handle_event)
+        """
+        target_channel = channel or self._pubsub_channel
+        if not target_channel:
+            return
+
+        try:
+            client = self._require_client()
+            pubsub = client.pubsub()
+            pubsub.subscribe(target_channel)
+            for msg in pubsub.listen():
+                if not msg or msg.get("type") != "message":
+                    continue
+                try:
+                    event = json.loads(msg.get("data"))
+                except Exception:
+                    continue
+                handler(event)
+        except Exception:
+            pass

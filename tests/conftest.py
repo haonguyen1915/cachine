@@ -20,10 +20,13 @@ REDIS_MODE = os.environ.get("REDIS_MODE", "single")
 
 if REDIS_MODE == "single":
     REDIS_URL = os.environ.get("REDIS_SINGLE_URL")
+    print(f"Testing Redis single at {REDIS_URL}")
 elif REDIS_MODE == "cluster":
     REDIS_URL = os.environ.get("REDIS_CLUSTER_URL")
+    print(f"Testing Redis cluster at {REDIS_URL}")
 elif REDIS_MODE == "sentinel":
     REDIS_URL = os.environ.get("REDIS_SENTINEL_URL")
+    print(f"Testing Redis sentinel at {REDIS_URL}")
 else:
     raise ValueError(f"Invalid REDIS_MODE: {REDIS_MODE}")
 
@@ -33,6 +36,14 @@ def inmemory_cache() -> Any:
     from cachine import InMemoryCache
 
     return InMemoryCache()
+
+
+@pytest.fixture
+def redis_single_config() -> RedisSingleConfig:
+    """Provide RedisSingleConfig for tests."""
+    if REDIS_MODE != "single":
+        pytest.skip("redis_single_config fixture requires REDIS_MODE=single")
+    return parse_redis_url(REDIS_URL)
 
 
 @pytest.fixture
