@@ -10,11 +10,17 @@ from .backends.redis.async_ import AsyncRedisCache
 from .backends.redis.sync import RedisCache
 from .factory import create_cache
 from .utils.logging_utils import logger_setup
+from .decorators.cached import cached
+from .core.types import Cache as CacheType, AsyncCache as AsyncCacheType, CacheLike
 
 __all__ = [
     "InMemoryCache",
     "RedisCache",
     "AsyncRedisCache",
+    "cached",
+    "CacheType",
+    "AsyncCacheType",
+    "CacheLike",
     "create_cache",
     "logger_setup",
 ]

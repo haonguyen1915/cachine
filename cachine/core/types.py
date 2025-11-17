@@ -130,3 +130,16 @@ class AsyncCache(Protocol):
     async def __aenter__(self) -> AsyncCache: ...
 
     async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None: ...
+
+
+# Helpful alias for code that accepts either sync or async cache types
+CacheLike = Cache | AsyncCache
+
+__all__ = [
+    "Cache",
+    "AsyncCache",
+    "CacheLike",
+    "CacheKey",
+    "TTL",
+    "TTLValue",
+]
