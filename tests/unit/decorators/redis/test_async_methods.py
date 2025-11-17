@@ -6,8 +6,8 @@ from cachine import cached
 
 
 @pytest.mark.asyncio
-async def test_async_instance_method_caching(redis_async_cache: Any) -> None:
-    cache = redis_async_cache
+async def test_async_instance_method_caching(a_redis_cache: Any) -> None:
+    cache = a_redis_cache
 
     class Service:
         def __init__(self, tenant: str) -> None:
@@ -26,8 +26,8 @@ async def test_async_instance_method_caching(redis_async_cache: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_staticmethod_caching(redis_async_cache: Any) -> None:
-    cache = redis_async_cache
+async def test_async_staticmethod_caching(a_redis_cache: Any) -> None:
+    cache = a_redis_cache
 
     class Util:
         calls = 0
@@ -44,8 +44,8 @@ async def test_async_staticmethod_caching(redis_async_cache: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_classmethod_caching(redis_async_cache: Any) -> None:
-    cache = redis_async_cache
+async def test_async_classmethod_caching(a_redis_cache: Any) -> None:
+    cache = a_redis_cache
 
     class Counter:
         calls = 0

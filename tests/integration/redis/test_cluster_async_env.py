@@ -1,6 +1,5 @@
 import os
 import time
-from typing import Any
 
 import pytest
 
@@ -9,17 +8,22 @@ def _truthy(v: str | None) -> bool:
     return (v or "").lower() in {"1", "true", "yes", "on"}
 
 
-def _parse_nodes(env: str | None) -> list[dict[str, Any]]:
+def _parse_nodes(env: str | None) -> list:  # type: ignore[type-arg]
     if not env:
         return []
-    nodes: list[dict[str, Any]] = []
-    for part in env.split(","):
-        part = part.strip()
-        if not part:
-            continue
-        host, _, port = part.partition(":")
-        nodes.append({"host": host, "port": int(port or 6379)})
-    return nodes
+    try:
+        from cachine.models.redis_config import RedisNodeConfig
+
+        nodes: list[RedisNodeConfig] = []
+        for part in env.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            host, _, port = part.partition(":")
+            nodes.append(RedisNodeConfig(host=host, port=int(port or 6379)))
+        return nodes
+    except Exception:  # pragma: no cover
+        return []
 
 
 pytestmark = pytest.mark.skipif(
@@ -31,7 +35,8 @@ pytestmark = pytest.mark.skipif(
 @pytest.mark.asyncio
 async def test_async_redis_cluster_set_get_incr() -> None:
     try:
-        from cachine.backends.redis.async_ import AsyncRedisClusterCache
+        from cachine.backends.redis.async_ import AsyncRedisCache
+        from cachine.models.redis_config import RedisClusterConfig
         from cachine.serializers import JSONSerializer
     except Exception as e:  # pragma: no cover
         pytest.skip(f"async redis cluster client not available: {e}")
@@ -45,11 +50,14 @@ async def test_async_redis_cluster_set_get_incr() -> None:
     ssl = os.getenv("REDIS_SSL", "false").lower() in {"1", "true", "yes"}
 
     try:
-        cache = AsyncRedisClusterCache(
+        config = RedisClusterConfig(
             nodes=nodes,
             username=username,
             password=password,
             ssl=ssl,
+        )
+        cache = AsyncRedisCache(
+            config,
             namespace=f"itest:{int(time.time())}",
             serializer=JSONSerializer(),
         )

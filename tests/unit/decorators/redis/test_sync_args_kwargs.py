@@ -3,8 +3,8 @@ from typing import Any
 from cachine import cached
 
 
-def test_args_only_redis(redis_sync_cache: Any) -> None:
-    cache = redis_sync_cache
+def test_args_only_redis(redis_cache: Any) -> None:
+    cache = redis_cache
     calls = {"n": 0}
 
     @cached(cache, ttl=60)
@@ -17,8 +17,8 @@ def test_args_only_redis(redis_sync_cache: Any) -> None:
     assert calls["n"] == 1
 
 
-def test_kwargs_only_redis(redis_sync_cache: Any) -> None:
-    cache = redis_sync_cache
+def test_kwargs_only_redis(redis_cache: Any) -> None:
+    cache = redis_cache
     calls = {"n": 0}
 
     @cached(cache, ttl=60)
@@ -31,8 +31,8 @@ def test_kwargs_only_redis(redis_sync_cache: Any) -> None:
     assert calls["n"] == 1
 
 
-def test_args_kwargs_equivalence_with_custom_keybuilder_redis(redis_sync_cache: Any) -> None:
-    cache = redis_sync_cache
+def test_args_kwargs_equivalence_with_custom_keybuilder_redis(redis_cache: Any) -> None:
+    cache = redis_cache
     calls = {"n": 0}
 
     def kb(*args: Any, **kwargs: Any) -> str:

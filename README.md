@@ -376,16 +376,18 @@ cache = RedisCache(
 
 **Example:**
 ```python
-from cachine.backends.redis.cluster import RedisClusterCache
+from cachine.backends.redis import RedisCache
+from cachine.models.redis_config import RedisClusterConfig, RedisNodeConfig
 
-cache = RedisClusterCache(
+config = RedisClusterConfig(
     nodes=[
-        {"host": "redis1.example.com", "port": 7000},
-        {"host": "redis2.example.com", "port": 7001},
-        {"host": "redis3.example.com", "port": 7002},
-    ],
-    namespace="myapp"
+        RedisNodeConfig(host="redis1.example.com", port=7000),
+        RedisNodeConfig(host="redis2.example.com", port=7001),
+        RedisNodeConfig(host="redis3.example.com", port=7002),
+    ]
 )
+
+cache = RedisCache(config, namespace="myapp")
 ```
 
 ### 🛡️ Redis Sentinel (High Availability)
@@ -397,17 +399,19 @@ cache = RedisClusterCache(
 
 **Example:**
 ```python
-from cachine.backends.redis.sentinel import RedisSentinelCache
+from cachine.backends.redis import RedisCache
+from cachine.models.redis_config import RedisSentinelConfig
 
-cache = RedisSentinelCache(
+config = RedisSentinelConfig(
+    service_name="mymaster",
     sentinels=[
         ("sentinel1.example.com", 26379),
         ("sentinel2.example.com", 26379),
         ("sentinel3.example.com", 26379),
-    ],
-    service_name="mymaster",
-    namespace="myapp"
+    ]
 )
+
+cache = RedisCache(config, namespace="myapp")
 ```
 
 ---

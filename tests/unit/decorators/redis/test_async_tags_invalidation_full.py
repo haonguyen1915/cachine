@@ -6,8 +6,8 @@ from cachine import cached
 
 
 @pytest.mark.asyncio
-async def test_async_tags_full_invalidation(redis_async_cache: Any) -> None:
-    cache = redis_async_cache
+async def test_async_tags_full_invalidation(a_redis_cache: Any) -> None:
+    cache = a_redis_cache
     calls = {"n": 0}
 
     @cached(

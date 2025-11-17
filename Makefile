@@ -34,7 +34,13 @@ lint_test:
 	poetry run ruff check
 	@echo "🚀 Checking with pylint"
 	@echo "🚀 Checking with mypy"
-	poetry run mypy tests
+	@if poetry run python -c "import mypy" >/dev/null 2>&1; then \
+		poetry run mypy tests ; \
+	elif command -v mypy >/dev/null 2>&1; then \
+		mypy tests ; \
+	else \
+		echo "⚠️  mypy not installed; skipping type check" ; \
+	fi
 	@echo "🟢 All checks have passed"
 
 .PHONY: fix

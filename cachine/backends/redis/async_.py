@@ -5,293 +5,9 @@ import inspect
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
-
-class AsyncRedisClient:
-    """Thin async wrapper around ``redis.asyncio.Redis``.
-
-    Exposes a limited surface used by :class:`AsyncRedisCache` and tests, keeping
-    imports lazy to avoid a hard dependency when not needed.
-
-    Args:
-        host (str): Redis host.
-        port (int): Redis port.
-        db (int): Database index.
-        password (str | None): Optional password.
-        ssl (bool): Whether to use TLS.
-        decode_responses (bool): If True, decodes responses to strings.
-    """
-
-    def __init__(
-        self,
-        *,
-        host: str = "localhost",
-        port: int = 6379,
-        db: int = 0,
-        password: Optional[str] = None,
-        ssl: bool = False,
-        decode_responses: bool = False,
-        socket_timeout: Optional[float] = None,
-        socket_connect_timeout: Optional[float] = None,
-        retry_on_timeout: bool = False,
-    ) -> None:
-        try:
-            from redis.asyncio import Redis
-        except Exception as e:  # pragma: no cover
-            raise RuntimeError("redis.asyncio not available; install redis>=4") from e
-        self._client = Redis(
-            host=host,
-            port=port,
-            db=db,
-            password=password,
-            ssl=ssl,
-            decode_responses=decode_responses,
-            socket_timeout=socket_timeout,
-            socket_connect_timeout=socket_connect_timeout,
-            retry_on_timeout=retry_on_timeout,
-        )
-
-    # Basic ops
-    async def get(self, name: str) -> Any:
-        """Get a raw value.
-
-        Args:
-            name (str): Key name.
-
-        Returns:
-            Any: Raw bytes or None.
-        """
-        return await self._client.get(name)
-
-    async def set(self, name: str, value: Any, *, ex: Optional[int] = None, px: Optional[int] = None) -> bool:
-        """Set a value with optional expiry.
-
-        Args:
-            name (str): Key name.
-            value (Any): Value to store.
-            ex (int | None): Expire after N seconds.
-            px (int | None): Expire after N milliseconds.
-
-        Returns:
-            bool: True if set succeeded.
-        """
-        return bool(await self._client.set(name, value, ex=ex, px=px))
-
-    async def delete(self, name: str) -> int:
-        """Delete a key.
-
-        Args:
-            name (str): Key name.
-
-        Returns:
-            int: Number of removed keys (0 or 1).
-        """
-        return int(await self._client.delete(name))
-
-    async def exists(self, name: str) -> int:
-        """Check key existence.
-
-        Args:
-            name (str): Key name.
-
-        Returns:
-            int: 1 if exists, else 0.
-        """
-        return int(await self._client.exists(name))
-
-    async def ttl(self, name: str) -> int:
-        """Get TTL.
-
-        Args:
-            name (str): Key name.
-
-        Returns:
-            int: TTL in seconds; -1 if no expire; -2 if missing.
-        """
-        return int(await self._client.ttl(name))
-
-    async def expire(self, name: str, seconds: int) -> int:
-        """Set relative expiration.
-
-        Args:
-            name (str): Key name.
-            seconds (int): TTL seconds.
-
-        Returns:
-            int: 1 on success.
-        """
-        return int(await self._client.expire(name, seconds))
-
-    async def expireat(self, name: str, timestamp: int) -> int:
-        """Set absolute expiration.
-
-        Args:
-            name (str): Key name.
-            timestamp (int): Unix time seconds.
-
-        Returns:
-            int: 1 on success.
-        """
-        return int(await self._client.expireat(name, timestamp))
-
-    async def pexpire(self, name: str, ms: int) -> int:
-        """Set expiration in milliseconds.
-
-        Args:
-            name (str): Key name.
-            ms (int): Milliseconds.
-
-        Returns:
-            int: 1 on success.
-        """
-        return int(await self._client.pexpire(name, ms))
-
-    async def persist(self, name: str) -> int:
-        """Remove expiration from a key.
-
-        Args:
-            name (str): Key name.
-
-        Returns:
-            int: 1 if TTL was removed; 0 otherwise.
-        """
-        return int(await self._client.persist(name))
-
-    async def incrby(self, name: str, delta: int) -> int:
-        """Increment by delta.
-
-        Args:
-            name (str): Key name.
-            delta (int): Increment amount.
-
-        Returns:
-            int: New integer value.
-        """
-        return int(await self._client.incrby(name, delta))
-
-    async def eval(self, script: str, numkeys: int, *keys_and_args: Any) -> Any:
-        """Evaluate a Lua script.
-
-        Args:
-            script (str): Lua script.
-            numkeys (int): Number of key arguments.
-            *keys_and_args: Keys followed by arguments.
-
-        Returns:
-            Any: Script result.
-        """
-        return await self._client.eval(script, numkeys, *keys_and_args)  # type: ignore[misc]
-
-    async def touch(self, name: str) -> int:
-        """Touch a key when supported.
-
-        Args:
-            name (str): Key name.
-
-        Returns:
-            int: 1 if exists (and touch succeeded when supported), else 0.
-        """
-        try:
-            return int(await self._client.touch(name))
-        except Exception:
-            return 1 if await self._client.exists(name) else 0
-
-    async def smembers(self, name: str) -> set:  # type: ignore[valid-type]
-        """Get set members.
-
-        Args:
-            name (str): Set key name.
-
-        Returns:
-            set: Members as Python set.
-        """
-        return set(await self._client.smembers(name))  # type: ignore[misc]
-
-    async def sadd(self, name: str, *values: Any) -> int:
-        """Add values to a set.
-
-        Args:
-            name (str): Set key name.
-            *values: Values to add.
-
-        Returns:
-            int: Number of elements actually added.
-        """
-        return int(await self._client.sadd(name, *values))  # type: ignore[misc]
-
-    async def scan_iter(self, match: str) -> Any:
-        """Iterate over keys matching the pattern.
-
-        Args:
-            match (str): Glob-style pattern.
-
-        Yields:
-            Any: Raw key values returned by the client.
-        """
-        async for key in self._client.scan_iter(match=match):
-            yield key
-
-    async def delete_many(self, *names: str) -> int:
-        """Delete multiple keys.
-
-        Args:
-            *names (str): Key names.
-
-        Returns:
-            int: Number of removed keys.
-        """
-        if not names:
-            return 0
-        return int(await self._client.delete(*names))
-
-    async def flushdb(self) -> None:
-        """Flush the current database.
-
-        Warning:
-            Dangerous operation; removes all keys in the selected DB.
-        """
-        await self._client.flushdb()
-
-    async def publish(self, channel: str, data: str) -> int:
-        """Publish a message.
-
-        Args:
-            channel (str): Channel name.
-            data (str): JSON-serializable string payload.
-
-        Returns:
-            int: Number of clients that received the message.
-        """
-        return int(await self._client.publish(channel, data))
-
-    def pubsub(self) -> Any:  # pragma: no cover
-        """Create a Pub/Sub object.
-
-        Returns:
-            Any: Pub/Sub object from the underlying client.
-        """
-        return self._client.pubsub()
-
-    async def ping(self) -> bool:
-        """Ping Redis.
-
-        Returns:
-            bool: True if ping succeeds.
-        """
-        try:
-            return bool(await self._client.ping())  # type: ignore[misc]
-        except Exception:
-            return False
-
-    async def close(self) -> None:
-        """Close the underlying client connection if possible.
-
-        Returns:
-            None
-        """
-        try:
-            await self._client.close()
-        except Exception:
-            pass
+from ...core.types import HealthStatus
+from ...models.redis_config import RedisClusterConfig, RedisConfig, RedisSentinelConfig, RedisSingleConfig
+from .types import AsyncRedisClientProto
 
 
 class AsyncRedisCache:
@@ -301,43 +17,40 @@ class AsyncRedisCache:
     operations using ``redis.asyncio``.
 
     Args:
-        host (str): Redis host.
-        port (int): Redis port.
-        db (int): Database index.
-        password (str | None): Optional password.
-        ssl (bool): Whether to use TLS.
+        config (RedisConfig): Redis configuration object (RedisSingleConfig, RedisClusterConfig, or RedisSentinelConfig).
         namespace (str | None): Optional namespace prefix.
-        client (Any | None): Injected client for testing/custom usage.
         serializer (Any | None): Default serializer for values.
+
+    Examples:
+        >>> from cachine.models.redis_config import RedisSingleConfig
+        >>> config = RedisSingleConfig(host="localhost", port=6379, db=0)
+        >>> cache = AsyncRedisCache(config, namespace="myapp")
+        >>> await cache.set("key", "value", ttl=60)
+        >>> await cache.get("key")
+        'value'
     """
 
     def __init__(
         self,
+        config: RedisConfig,
         *,
-        host: str = "localhost",
-        port: int = 6379,
-        db: int = 0,
-        password: Optional[str] = None,
-        ssl: bool = False,
         namespace: Optional[str] = None,
-        client: Optional[Any] = None,
         serializer: Optional[Any] = None,
-        socket_timeout: Optional[float] = None,
-        socket_connect_timeout: Optional[float] = None,
-        retry_on_timeout: bool = False,
     ) -> None:
+        # Typed client attribute
+        self._client: AsyncRedisClientProto
+        # Create appropriate client based on config type
+        if isinstance(config, RedisSingleConfig):
+            self._client = self._create_single_client(config)
+        elif isinstance(config, RedisClusterConfig):
+            self._client = self._create_cluster_client(config)
+        elif isinstance(config, RedisSentinelConfig):
+            self._client = self._create_sentinel_client(config)
+        else:
+            raise TypeError(f"Unsupported config type: {type(config)}")
+
+        self._config = config
         self._ns = f"{namespace}:" if namespace else ""
-        self._cfg = {
-            "host": host,
-            "port": port,
-            "db": db,
-            "ssl": ssl,
-            "socket_timeout": socket_timeout,
-            "socket_connect_timeout": socket_connect_timeout,
-            "retry_on_timeout": retry_on_timeout,
-        }
-        self._password = password
-        self._client = client
         self._serializer = serializer
 
     # Basic ops
@@ -353,7 +66,7 @@ class AsyncRedisCache:
             Any: Decoded value or ``default``.
         """
         k = self._ns + key
-        client = await self._require_client()
+        client = self._client
         raw = await client.get(k)
         if raw is None:
             return default
@@ -378,7 +91,7 @@ class AsyncRedisCache:
             None
         """
         k = self._ns + key
-        client = await self._require_client()
+        client = self._client
         ser = serializer or self._serializer
         payload = ser.dumps(value) if ser is not None else value
         seconds = int(ttl.total_seconds()) if isinstance(ttl, timedelta) else (int(ttl) if ttl is not None else None)
@@ -397,7 +110,7 @@ class AsyncRedisCache:
             bool: True if key existed.
         """
         k = self._ns + key
-        client = await self._require_client()
+        client = self._client
         return bool(await client.delete(k))
 
     async def exists(self, key: str) -> bool:
@@ -410,7 +123,7 @@ class AsyncRedisCache:
             bool: True if key exists.
         """
         k = self._ns + key
-        client = await self._require_client()
+        client = self._client
         res = await client.exists(k)
         try:
             return bool(int(res))
@@ -427,7 +140,7 @@ class AsyncRedisCache:
         Returns:
             None
         """
-        client = await self._require_client()
+        client = self._client
         if dangerously_clear_all:
             try:
                 await client.flushdb()
@@ -490,7 +203,7 @@ class AsyncRedisCache:
             bool: True on success (including deletion when ttl <= 0).
         """
         k = self._ns + key
-        client = await self._require_client()
+        client = self._client
         seconds = int(ttl.total_seconds()) if isinstance(ttl, timedelta) else int(ttl)
         if seconds <= 0:
             await client.delete(k)
@@ -508,7 +221,7 @@ class AsyncRedisCache:
             bool: True if expiration was set.
         """
         k = self._ns + key
-        client = await self._require_client()
+        client = self._client
         ts = int(when.timestamp())
         return bool(await client.expireat(k, ts))
 
@@ -524,7 +237,7 @@ class AsyncRedisCache:
             bool: True if key exists (and TTL was updated when provided).
         """
         k = self._ns + key
-        client = await self._require_client()
+        client = self._client
         if ttl is None:
             try:
                 return bool(await client.touch(k))
@@ -546,7 +259,7 @@ class AsyncRedisCache:
             int | None: Remaining seconds; None if no TTL or missing.
         """
         k = self._ns + key
-        client = await self._require_client()
+        client = self._client
         res = await client.ttl(k)
         try:
             val = int(res)
@@ -566,7 +279,7 @@ class AsyncRedisCache:
             bool: True if TTL existed and was removed.
         """
         k = self._ns + key
-        client = await self._require_client()
+        client = self._client
         try:
             res = await client.persist(k)
             return bool(res)
@@ -593,7 +306,7 @@ class AsyncRedisCache:
             int: The new integer value.
         """
         k = self._ns + key
-        client = await self._require_client()
+        client = self._client
         if ttl_on_create is None:
             return int(await client.incrby(k, int(delta)))
         pexpire_ms = int(ttl_on_create.total_seconds() * 1000) if isinstance(ttl_on_create, timedelta) else int(ttl_on_create) * 1000
@@ -639,7 +352,7 @@ class AsyncRedisCache:
         Returns:
             int: Number of keys deleted across all tags.
         """
-        client = await self._require_client()
+        client = self._client
         deleted = 0
         for tag in tags:
             tkey = f"{self._ns}tag::{tag}"
@@ -670,7 +383,7 @@ class AsyncRedisCache:
         Returns:
             None
         """
-        client = await self._require_client()
+        client = self._client
         k = self._ns + key
         for tag in tags:
             tkey = f"{self._ns}tag::{tag}"
@@ -680,7 +393,7 @@ class AsyncRedisCache:
                 pass
 
     # Health / lifecycle
-    async def ping(self) -> dict[str, Any]:
+    async def ping(self) -> HealthStatus:
         """Check health.
 
         Returns:
@@ -688,7 +401,7 @@ class AsyncRedisCache:
         """
         ok = False
         try:
-            ok = await (await self._require_client()).ping()
+            ok = await self._client.ping()
         except Exception:
             ok = False
         return {"healthy": bool(ok), "latency_ms": 0.0, "backend": "redis"}
@@ -705,7 +418,7 @@ class AsyncRedisCache:
     async def close(self) -> None:
         """Close underlying client (async)."""
         try:
-            await (await self._require_client()).close()
+            await self._client.close()
         except Exception:
             pass
 
@@ -722,105 +435,66 @@ class AsyncRedisCache:
         """Exit async context manager and close connections."""
         await self.close()
 
-    async def _require_client(self) -> Any:
-        """Return or construct the underlying async Redis client wrapper.
+    # Internal helpers
+    def _create_single_client(self, config: RedisSingleConfig) -> AsyncRedisClientProto:
+        """Create client for single Redis instance.
+
+        Args:
+            config (RedisSingleConfig): Single instance configuration.
 
         Returns:
-            Any: Client implementing the subset of redis.asyncio used here.
+            Any: AsyncRedisClient wrapper instance.
         """
-        if self._client is not None:
-            return self._client
-        self._client = AsyncRedisClient(
-            host=str(self._cfg["host"]),
-            port=int(self._cfg["port"]),
-            db=int(self._cfg["db"]),
-            password=self._password,
-            ssl=bool(self._cfg["ssl"]),
-            decode_responses=False,
-            socket_timeout=self._cfg.get("socket_timeout"),
-            socket_connect_timeout=self._cfg.get("socket_connect_timeout"),
-            retry_on_timeout=bool(self._cfg.get("retry_on_timeout", False)),
-        )
-        return self._client
-
-
-class AsyncRedisSentinelCache(AsyncRedisCache):
-    """Async Redis cache configured via Redis Sentinel.
-
-    Creates a sentinel connection and injects a master client into
-    :class:`AsyncRedisCache`.
-
-    Args:
-        sentinels (list[tuple[str, int]]): Sentinel host/port tuples.
-        service_name (str): Sentinel service name (master alias).
-        username (str | None): Username for ACL-enabled Redis.
-        password (str | None): Password for Redis.
-        db (int): Database index.
-        ssl (bool): Whether to use TLS.
-        namespace (str | None): Optional namespace prefix.
-        serializer (Any | None): Default serializer for values.
-    """
-
-    def __init__(
-        self,
-        *,
-        sentinels: list[tuple[str, int]],
-        service_name: str,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        db: int = 0,
-        ssl: bool = False,
-        namespace: Optional[str] = None,
-        serializer: Optional[Any] = None,
-    ) -> None:
         try:
-            from redis.asyncio.sentinel import Sentinel
+            from redis.asyncio import Redis
         except Exception as e:  # pragma: no cover
-            raise RuntimeError("redis.asyncio.sentinel is not available; install redis>=4") from e
+            raise RuntimeError("redis.asyncio not available; install redis>=4") from e
 
-        sentinel = Sentinel(sentinels, socket_timeout=2, ssl=ssl)
-        client = sentinel.master_for(service_name, db=db, username=username, password=password, ssl=ssl)
-        # Inject client
-        super().__init__(
-            host="",
-            port=0,
-            db=db,
-            password=password,
-            ssl=ssl,
-            namespace=namespace,
-            client=client,
-            serializer=serializer,
-        )
+        kwargs: dict[str, Any] = {
+            "host": config.host,
+            "port": int(config.port),
+            "db": int(config.db),
+            "ssl": bool(config.ssl),
+            "decode_responses": bool(config.decode_responses),
+        }
+        if config.username is not None:
+            kwargs["username"] = config.username
+        if config.password is not None:
+            kwargs["password"] = config.password
+        if config.socket_timeout is not None:
+            kwargs["socket_timeout"] = float(config.socket_timeout)
+        if config.socket_connect_timeout is not None:
+            kwargs["socket_connect_timeout"] = float(config.socket_connect_timeout)
+        if config.retry_on_timeout:
+            kwargs["retry_on_timeout"] = True
 
+        # Merge any additional parameters
+        for k, v in config.extra.items():
+            kwargs.setdefault(k, v)
 
-class AsyncRedisClusterCache(AsyncRedisCache):
-    """Async Redis cache configured for Redis Cluster.
+        return Redis(**kwargs)
 
-    Args:
-        nodes (list[dict[str, Any]]): List of node dicts with ``host`` and ``port``.
-        username (str | None): Username for ACL-enabled Redis.
-        password (str | None): Password used by the cluster.
-        ssl (bool): Whether to use TLS.
-        namespace (str | None): Optional namespace prefix.
-        serializer (Any | None): Default serializer for values.
-    """
+    def _create_cluster_client(self, config: RedisClusterConfig) -> AsyncRedisClientProto:
+        """Create client for Redis Cluster.
 
-    def __init__(
-        self,
-        *,
-        nodes: list[dict[str, Any]],
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        ssl: bool = False,
-        namespace: Optional[str] = None,
-        serializer: Optional[Any] = None,
-    ) -> None:
+        Args:
+            config (RedisClusterConfig): Cluster configuration.
+
+        Returns:
+            Any: RedisCluster client instance.
+
+        Raises:
+            RuntimeError: If redis cluster client is not available.
+        """
         try:
             from redis.asyncio.cluster import RedisCluster
-        except Exception as e:  # pragma: no cover
+        except Exception as e:
             raise RuntimeError("redis.asyncio.cluster not available; install redis>=5") from e
 
-        # Prefer ClusterNode if available
+        # Convert nodes to dict format for redis-py
+        nodes = [{"host": node.host, "port": node.port} for node in config.nodes]
+
+        # Try different redis-py API versions
         client = None
         try:
             try:
@@ -829,37 +503,60 @@ class AsyncRedisClusterCache(AsyncRedisCache):
                 cluster_node_cls = None  # type: ignore
 
             if cluster_node_cls is not None:
-                cluster_nodes = [cluster_node_cls(n["host"], int(n.get("port", 6379))) for n in nodes]
+                cluster_nodes = [cluster_node_cls(str(n["host"]), int(n.get("port", 6379))) for n in nodes]
                 try:
-                    client = RedisCluster(nodes=cluster_nodes, username=username, password=password, ssl=ssl)  # type: ignore[call-arg]
+                    client = RedisCluster(nodes=cluster_nodes, username=config.username, password=config.password, ssl=config.ssl)  # type: ignore[call-arg]
                 except TypeError:
                     client = RedisCluster(
                         startup_nodes=[{"host": n["host"], "port": int(n.get("port", 6379))} for n in nodes],  # type: ignore[misc]
-                        username=username,
-                        password=password,
-                        ssl=ssl,
+                        username=config.username,
+                        password=config.password,
+                        ssl=config.ssl,
                     )
             else:
                 client = RedisCluster(  # type: ignore[unreachable]
                     startup_nodes=[{"host": n["host"], "port": int(n.get("port", 6379))} for n in nodes],
-                    username=username,
-                    password=password,
-                    ssl=ssl,
+                    username=config.username,
+                    password=config.password,
+                    ssl=config.ssl,
                 )
         except Exception:
             client = None
 
         if client is None:
             first = nodes[0]
-            client = RedisCluster(host=first["host"], port=int(first.get("port", 6379)), username=username, password=password, ssl=ssl)
+            client = RedisCluster(
+                host=str(first["host"]),
+                port=int(first.get("port", 6379)),
+                username=config.username,
+                password=config.password,
+                ssl=config.ssl,
+            )
 
-        super().__init__(
-            host="",
-            port=0,
-            db=0,
-            password=password,
-            ssl=ssl,
-            namespace=namespace,
-            client=client,
-            serializer=serializer,
+        return client
+
+    def _create_sentinel_client(self, config: RedisSentinelConfig) -> AsyncRedisClientProto:
+        """Create client for Redis Sentinel.
+
+        Args:
+            config (RedisSentinelConfig): Sentinel configuration.
+
+        Returns:
+            Any: Redis master client from Sentinel.
+
+        Raises:
+            RuntimeError: If redis.asyncio.sentinel is not available.
+        """
+        try:
+            from redis.asyncio.sentinel import Sentinel
+        except Exception as e:
+            raise RuntimeError("redis.asyncio.sentinel is not available; install redis>=4") from e
+
+        sentinel = Sentinel(list(config.sentinels), socket_timeout=2, ssl=config.ssl)
+        return sentinel.master_for(
+            config.service_name,
+            db=config.db,
+            username=config.username,
+            password=config.password,
+            ssl=config.ssl,
         )

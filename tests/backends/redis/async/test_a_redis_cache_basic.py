@@ -1,11 +1,12 @@
 from typing import Any
 
 import pytest
+from cachine import AsyncRedisCache
 
 
 @pytest.mark.asyncio
-async def test_async_redis_set_get_incr_ttl(redis_async_cache: Any) -> None:
-    cache = redis_async_cache
+async def test_async_redis_set_get_incr_ttl(a_redis_cache: AsyncRedisCache) -> None:
+    cache = a_redis_cache
 
     # set/get
     await cache.set("k", {"a": 1}, ttl=5)
@@ -33,8 +34,8 @@ async def test_async_redis_set_get_incr_ttl(redis_async_cache: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_redis_tags_invalidation(redis_async_cache: Any) -> None:
-    cache = redis_async_cache
+async def test_async_redis_tags_invalidation(a_redis_cache: AsyncRedisCache) -> None:
+    cache = a_redis_cache
 
     await cache.set("user:1", {"id": 1, "role": "admin"}, ttl=60)
     # attach tags and invalidate

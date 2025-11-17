@@ -10,8 +10,8 @@ def _kb(a: int, b: int) -> str:
     return f"sum:{hashlib.sha256(f'{a}:{b}'.encode()).hexdigest()}"
 
 
-def test_redis_decorator_full_config(redis_sync_cache: Any) -> None:
-    cache = redis_sync_cache
+def test_redis_decorator_full_config(redis_cache: Any) -> None:
+    cache = redis_cache
     calls = {"n": 0}
 
     @cached(
@@ -52,8 +52,8 @@ def test_redis_decorator_full_config(redis_sync_cache: Any) -> None:
     assert calls["n"] >= 3
 
 
-def test_redis_decorator_version_isolation(redis_sync_cache: Any) -> None:
-    cache = redis_sync_cache
+def test_redis_decorator_version_isolation(redis_cache: Any) -> None:
+    cache = redis_cache
 
     @cached(cache, ttl=60, key_builder=_kb, version="v1")
     def f1(a: int, b: int) -> int:
@@ -68,8 +68,8 @@ def test_redis_decorator_version_isolation(redis_sync_cache: Any) -> None:
     assert f2(1, 2) == 200
 
 
-def test_redis_decorator_singleflight_concurrency(redis_sync_cache: Any) -> None:
-    cache = redis_sync_cache
+def test_redis_decorator_singleflight_concurrency(redis_cache: Any) -> None:
+    cache = redis_cache
     calls = {"n": 0}
 
     @cached(cache, ttl=60, singleflight=True, key_builder=_kb)

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Any, Optional, Protocol, TypedDict, TypeVar, runtime_checkable
 
 CacheKey = str
 TTL = Optional["TTLValue"]
@@ -25,6 +25,12 @@ class TTLValue:
 
 
 T = TypeVar("T")
+
+
+class HealthStatus(TypedDict):
+    healthy: bool
+    latency_ms: float
+    backend: str
 
 
 @runtime_checkable
@@ -65,7 +71,7 @@ class Cache(Protocol):
     def invalidate_tags(self, tags: list[str]) -> int: ...
 
     # Health / lifecycle
-    def ping(self) -> dict[str, Any]: ...
+    def ping(self) -> HealthStatus: ...
 
     def ping_ok(self) -> bool: ...
 
@@ -120,7 +126,7 @@ class AsyncCache(Protocol):
     async def invalidate_tags(self, tags: list[str]) -> int: ...
 
     # Health / lifecycle
-    async def ping(self) -> dict[str, Any]: ...
+    async def ping(self) -> HealthStatus: ...
 
     async def ping_ok(self) -> bool: ...
 
@@ -142,4 +148,5 @@ __all__ = [
     "CacheKey",
     "TTL",
     "TTLValue",
+    "HealthStatus",
 ]

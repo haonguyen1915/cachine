@@ -6,8 +6,8 @@ from cachine import cached
 
 
 @pytest.mark.asyncio
-async def test_async_args_only(redis_async_cache: Any) -> None:
-    cache = redis_async_cache
+async def test_async_args_only(a_redis_cache: Any) -> None:
+    cache = a_redis_cache
     calls = {"n": 0}
 
     @cached(cache, ttl=60)
@@ -21,8 +21,8 @@ async def test_async_args_only(redis_async_cache: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_kwargs_only(redis_async_cache: Any) -> None:
-    cache = redis_async_cache
+async def test_async_kwargs_only(a_redis_cache: Any) -> None:
+    cache = a_redis_cache
     calls = {"n": 0}
 
     @cached(cache, ttl=60)
@@ -36,8 +36,8 @@ async def test_async_kwargs_only(redis_async_cache: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_args_kwargs_equivalence_with_custom_keybuilder(redis_async_cache: Any) -> None:
-    cache = redis_async_cache
+async def test_async_args_kwargs_equivalence_with_custom_keybuilder(a_redis_cache: Any) -> None:
+    cache = a_redis_cache
     calls = {"n": 0}
 
     def kb(*args: Any, **kwargs: Any) -> str:

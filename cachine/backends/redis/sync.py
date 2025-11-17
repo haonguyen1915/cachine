@@ -3,8 +3,10 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
+from ...core.types import HealthStatus
+from ...models.redis_config import RedisClusterConfig, RedisConfig, RedisSentinelConfig, RedisSingleConfig
 from ...utils.helpers import to_seconds
-from .client import RedisClient
+from .types import SyncRedisClientProto
 
 _MISSING = object()
 
@@ -16,43 +18,40 @@ class RedisCache:
     Redis client. A default serializer can be configured for values.
 
     Args:
-        host (str): Redis host. Defaults to ``"localhost"``.
-        port (int): Redis port. Defaults to ``6379``.
-        db (int): Redis database index. Defaults to ``0``.
-        password (str | None): Optional password.
-        ssl (bool): Whether to use TLS.
+        config (RedisConfig): Redis configuration object (RedisSingleConfig, RedisClusterConfig, or RedisSentinelConfig).
         namespace (str | None): Optional key namespace prefix, e.g. ``"app:"``.
-        client (Any | None): Optional injected client (must implement RedisClient-like API).
         serializer (Any | None): Default serializer for values supporting ``dumps``/``loads``.
+
+    Examples:
+        >>> from cachine.models.redis_config import RedisSingleConfig
+        >>> config = RedisSingleConfig(host="localhost", port=6379, db=0)
+        >>> cache = RedisCache(config, namespace="myapp")
+        >>> cache.set("key", "value", ttl=60)
+        >>> cache.get("key")
+        'value'
     """
 
     def __init__(
         self,
+        config: RedisConfig,
         *,
-        host: str = "localhost",
-        port: int = 6379,
-        db: int = 0,
-        password: Optional[str] = None,
-        ssl: bool = False,
         namespace: Optional[str] = None,
-        client: Optional[Any] = None,
         serializer: Optional[Any] = None,
-        socket_timeout: Optional[float] = None,
-        socket_connect_timeout: Optional[float] = None,
-        retry_on_timeout: bool = False,
     ) -> None:
+        # Typed client attribute
+        self._client: SyncRedisClientProto
+        # Create appropriate client based on config type
+        if isinstance(config, RedisSingleConfig):
+            self._client = self._create_single_client(config)
+        elif isinstance(config, RedisClusterConfig):
+            self._client = self._create_cluster_client(config)
+        elif isinstance(config, RedisSentinelConfig):
+            self._client = self._create_sentinel_client(config)
+        else:
+            raise TypeError(f"Unsupported config type: {type(config)}")
+
+        self._config = config
         self._ns = f"{namespace}:" if namespace else ""
-        self._cfg = {
-            "host": host,
-            "port": port,
-            "db": db,
-            "ssl": ssl,
-            "socket_timeout": socket_timeout,
-            "socket_connect_timeout": socket_connect_timeout,
-            "retry_on_timeout": retry_on_timeout,
-        }
-        self._password = password
-        self._client = client  # injected client for testing or custom usage
         self._serializer = serializer
 
     # Basic ops (stubs)
@@ -400,7 +399,7 @@ class RedisCache:
         return len(deleted_keys)
 
     # Health / lifecycle
-    def ping(self) -> dict[str, Any]:
+    def ping(self) -> HealthStatus:
         """Check health.
 
         Returns:
@@ -435,33 +434,124 @@ class RedisCache:
         return None
 
     # Internal helpers
-    def _require_client(self) -> Any:
-        """Return or construct a Redis client wrapper.
+    def _require_client(self) -> SyncRedisClientProto:
+        """Return the Redis client wrapper.
 
         Returns:
-            Any: A client implementing the subset of redis-py used here.
+            SyncRedisClientProto: A client implementing the subset of redis-py used here.
+        """
+        return self._client
+
+    def _create_single_client(self, config: RedisSingleConfig) -> SyncRedisClientProto:
+        """Create client for single Redis instance.
+
+        Args:
+            config (RedisSingleConfig): Single instance configuration.
+
+        Returns:
+            Any: RedisClient wrapper instance.
+        """
+        try:
+            import redis
+        except Exception as e:  # pragma: no cover
+            raise RuntimeError("redis package not installed. Please install redis (pip install redis).") from e
+
+        # Build kwargs from config, keeping bytes-oriented responses by default
+        kwargs: dict[str, Any] = {
+            "host": config.host,
+            "port": int(config.port),
+            "db": int(config.db),
+            "ssl": bool(config.ssl),
+            "decode_responses": bool(config.decode_responses),
+        }
+        if config.username is not None:
+            kwargs["username"] = config.username
+        if config.password is not None:
+            kwargs["password"] = config.password
+        if config.socket_timeout is not None:
+            kwargs["socket_timeout"] = float(config.socket_timeout)
+        if config.socket_connect_timeout is not None:
+            kwargs["socket_connect_timeout"] = float(config.socket_connect_timeout)
+        if config.retry_on_timeout:
+            kwargs["retry_on_timeout"] = True
+
+        # Allow passing through any additional supported parameters
+        for k, v in config.extra.items():
+            kwargs.setdefault(k, v)
+
+        return redis.Redis(**kwargs)
+
+    def _create_cluster_client(self, config: RedisClusterConfig) -> SyncRedisClientProto:
+        """Create client for Redis Cluster.
+
+        Args:
+            config (RedisClusterConfig): Cluster configuration.
+
+        Returns:
+            Any: RedisCluster client instance.
 
         Raises:
-            RuntimeError: If a client cannot be constructed and none is injected.
+            RuntimeError: If redis cluster client is not available.
         """
-        if self._client is not None:
-            return self._client
-        # Lazy import to avoid hard dependency when injected client is used
         try:
-            self._client = RedisClient(
-                host=str(self._cfg["host"]),
-                port=int(self._cfg["port"]),
-                db=int(self._cfg["db"]),
-                password=self._password,
-                ssl=bool(self._cfg["ssl"]),
-                decode_responses=False,
-                socket_timeout=self._cfg.get("socket_timeout"),
-                socket_connect_timeout=self._cfg.get("socket_connect_timeout"),
-                retry_on_timeout=bool(self._cfg.get("retry_on_timeout", False)),
+            from redis.cluster import RedisCluster
+        except Exception as e:
+            raise RuntimeError("redis cluster client not available; install redis>=4 with cluster support") from e
+
+        # Convert nodes to dict format for redis-py
+        nodes = [{"host": node.host, "port": node.port} for node in config.nodes]
+
+        # Try different redis-py API versions
+        try:
+            from redis.cluster import ClusterNode
+
+            cluster_nodes = [ClusterNode(n["host"], n["port"]) for n in nodes]
+            try:
+                return RedisCluster(
+                    nodes=cluster_nodes,
+                    username=config.username,
+                    password=config.password,
+                    ssl=config.ssl,
+                )
+            except TypeError:
+                return RedisCluster(  # type: ignore[call-arg]
+                    startup_nodes=nodes,  # type: ignore[arg-type]
+                    username=config.username,
+                    password=config.password,
+                    ssl=config.ssl,
+                )
+        except ImportError:
+            return RedisCluster(  # type: ignore[call-arg]
+                startup_nodes=nodes,  # type: ignore[arg-type]
+                username=config.username,
+                password=config.password,
+                ssl=config.ssl,
             )
-            return self._client
-        except Exception as e:  # pragma: no cover
-            raise RuntimeError("Redis client not available and no client injected") from e
+
+    def _create_sentinel_client(self, config: RedisSentinelConfig) -> SyncRedisClientProto:
+        """Create client for Redis Sentinel.
+
+        Args:
+            config (RedisSentinelConfig): Sentinel configuration.
+
+        Returns:
+            Any: Redis master client from Sentinel.
+
+        Raises:
+            RuntimeError: If redis.sentinel is not available.
+        """
+        try:
+            from redis.sentinel import Sentinel
+        except Exception as e:
+            raise RuntimeError("redis.sentinel is not available; install redis>=4") from e
+
+        sentinel = Sentinel(list(config.sentinels), socket_timeout=2, ssl=config.ssl)
+        return sentinel.master_for(
+            config.service_name,
+            db=config.db,
+            password=config.password,
+            ssl=config.ssl,
+        )
 
     # Tag helpers
     def add_tags(self, key: str, tags: list[str]) -> None:

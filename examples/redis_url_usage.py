@@ -1,7 +1,7 @@
 """Example usage of Redis URL parsing utilities."""
 
-from cachine.utils import create_cache_from_url, parse_redis_url
 from cachine.serializers import JSONSerializer
+from cachine.utils import create_cache_from_url, parse_redis_url
 
 
 def example_parse_urls() -> None:
@@ -81,7 +81,7 @@ def example_create_cache() -> None:
             print(f"  Retrieved value: {value}")
         except Exception as e:
             print(f"  Note: Could not connect to Redis: {type(e).__name__}")
-            print(f"        This is expected if Redis is not running or requires authentication")
+            print("        This is expected if Redis is not running or requires authentication")
         finally:
             cache.close()
 

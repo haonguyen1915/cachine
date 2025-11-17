@@ -7,9 +7,9 @@ import pytest
 from cachine import cached
 
 
-@pytest.mark.usefixtures("redis_sync_cache")
-def test_sync_template_key_builder_redis(redis_sync_cache: Any) -> None:
-    cache = redis_sync_cache
+@pytest.mark.usefixtures("redis_cache")
+def test_sync_template_key_builder_redis(redis_cache: Any) -> None:
+    cache = redis_cache
 
     @cached(cache=cache, ttl=30, key_builder="{ctx.full_name}:{uid}", version="rv1")
     def get_user(uid: int) -> dict[str, int]:

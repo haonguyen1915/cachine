@@ -6,8 +6,8 @@ from cachine import cached
 
 
 @pytest.mark.asyncio
-async def test_async_key_builder_receives_context(redis_async_cache: Any) -> None:
-    cache = redis_async_cache
+async def test_async_key_builder_receives_context(a_redis_cache: Any) -> None:
+    cache = a_redis_cache
     captured = {}
 
     def kb(ctx: Any, a: int, b: int) -> str:

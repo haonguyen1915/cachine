@@ -3,8 +3,8 @@ from typing import Any
 from cachine import cached
 
 
-def test_tags_full_invalidation_redis(redis_sync_cache: Any) -> None:
-    cache = redis_sync_cache
+def test_tags_full_invalidation_redis(redis_cache: Any) -> None:
+    cache = redis_cache
     calls = {"n": 0}
 
     @cached(

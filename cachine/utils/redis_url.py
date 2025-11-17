@@ -12,17 +12,19 @@ URL Formats:
     Sentinel: redis+sentinel://[:password@]service_name[/db]?sentinels=host1:port1,host2:port2
 
 Examples:
-    >>> parse_redis_url("redis://localhost:6379/0")
-    {'type': 'single', 'host': 'localhost', 'port': 6379, 'db': 0, 'password': None, 'ssl': False}
+    >>> config = parse_redis_url("redis://localhost:6379/0")
+    >>> config.host
+    'localhost'
+    >>> config.port
+    6379
 
-    >>> parse_redis_url("redis://user:pass@localhost:6379/1?socket_timeout=5")
-    {'type': 'single', 'host': 'localhost', 'port': 6379, 'db': 1, 'password': 'pass', 'ssl': False, 'socket_timeout': 5.0}
+    >>> config = parse_redis_url("redis://node1:7000,node2:7001,node3:7002")
+    >>> len(config.nodes)
+    3
 
-    >>> parse_redis_url("redis://node1:7000,node2:7001,node3:7002")
-    {'type': 'cluster', 'nodes': [{'host': 'node1', 'port': 7000}, {'host': 'node2', 'port': 7001}, {'host': 'node3', 'port': 7002}], 'password': None, 'ssl': False}
-
-    >>> parse_redis_url("redis+sentinel://mymaster/0?sentinels=host1:26379,host2:26379")
-    {'type': 'sentinel', 'service_name': 'mymaster', 'sentinels': [('host1', 26379), ('host2', 26379)], 'db': 0, 'password': None, 'ssl': False}
+    >>> config = parse_redis_url("redis+sentinel://mymaster/0?sentinels=host1:26379,host2:26379")
+    >>> config.service_name
+    'mymaster'
 """
 
 from __future__ import annotations
@@ -30,33 +32,41 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from ..models.redis_config import (
+    RedisClusterConfig,
+    RedisConfig,
+    RedisNodeConfig,
+    RedisSentinelConfig,
+    RedisSingleConfig,
+)
+
 
 class RedisURLParseError(ValueError):
     """Raised when a Redis URL cannot be parsed."""
 
 
-def parse_redis_url(url: str) -> dict[str, Any]:
-    """Parse a Redis connection URL into configuration dict.
+def parse_redis_url(url: str) -> RedisConfig:
+    """Parse a Redis connection URL into configuration object.
 
     Args:
         url: Redis connection URL string
 
     Returns:
-        Dictionary with parsed configuration:
-        - For single instance: {'type': 'single', 'host': ..., 'port': ..., 'db': ..., 'password': ..., 'ssl': ...}
-        - For cluster: {'type': 'cluster', 'nodes': [...], 'password': ..., 'ssl': ...}
-        - For sentinel: {'type': 'sentinel', 'service_name': ..., 'sentinels': [...], 'db': ..., 'password': ..., 'ssl': ...}
+        RedisConfig object (RedisSingleConfig, RedisClusterConfig, or RedisSentinelConfig):
+        - For single instance: RedisSingleConfig with host, port, db, password, ssl, etc.
+        - For cluster: RedisClusterConfig with nodes, password, ssl, etc.
+        - For sentinel: RedisSentinelConfig with service_name, sentinels, db, password, ssl, etc.
 
     Raises:
         RedisURLParseError: If URL format is invalid
 
     Examples:
         >>> config = parse_redis_url("redis://localhost:6379/0")
-        >>> config['type']
-        'single'
-        >>> config['host']
+        >>> isinstance(config, RedisSingleConfig)
+        True
+        >>> config.host
         'localhost'
-        >>> config['port']
+        >>> config.port
         6379
     """
     if not url:
@@ -99,8 +109,12 @@ def _parse_single_url(
     username: str | None,
     password: str | None,
     extra_params: dict[str, Any],
-) -> dict[str, Any]:
-    """Parse single Redis instance URL."""
+) -> RedisSingleConfig:
+    """Parse single Redis instance URL.
+
+    Returns:
+        RedisSingleConfig object with parsed configuration
+    """
     # Extract host and port
     host = parsed.hostname or "localhost"
     port = parsed.port or 6379
@@ -115,23 +129,26 @@ def _parse_single_url(
             except ValueError as e:
                 raise RedisURLParseError(f"Invalid database number: {path}") from e
 
-    config: dict[str, Any] = {
-        "type": "single",
-        "host": host,
-        "port": port,
-        "db": db,
-        "password": password,
-        "ssl": ssl,
-    }
+    # Extract known timeout and config parameters from extra_params
+    socket_timeout = extra_params.pop("socket_timeout", None)
+    socket_connect_timeout = extra_params.pop("socket_connect_timeout", None)
+    retry_on_timeout = extra_params.pop("retry_on_timeout", False)
+    decode_responses = extra_params.pop("decode_responses", False)
 
-    # Add username if provided (for ACL)
-    if username:
-        config["username"] = username
-
-    # Merge extra parameters
-    config.update(extra_params)
-
-    return config
+    # Remaining params go into extra
+    return RedisSingleConfig(
+        host=host,
+        port=port,
+        db=db,
+        password=password,
+        username=username,
+        ssl=ssl,
+        socket_timeout=socket_timeout,
+        socket_connect_timeout=socket_connect_timeout,
+        retry_on_timeout=retry_on_timeout,
+        decode_responses=decode_responses,
+        extra=extra_params,
+    )
 
 
 def _parse_cluster_url(
@@ -140,8 +157,12 @@ def _parse_cluster_url(
     username: str | None,
     password: str | None,
     extra_params: dict[str, Any],
-) -> dict[str, Any]:
-    """Parse Redis Cluster URL with multiple nodes."""
+) -> RedisClusterConfig:
+    """Parse Redis Cluster URL with multiple nodes.
+
+    Returns:
+        RedisClusterConfig object with parsed configuration
+    """
     # Parse nodes from netloc
     # Format: [user:password@]host1:port1,host2:port2,host3:port3
     netloc = parsed.netloc
@@ -151,7 +172,7 @@ def _parse_cluster_url(
         netloc = netloc.split("@", 1)[1]
 
     # Parse each node
-    nodes = []
+    nodes: list[RedisNodeConfig] = []
     for node_str in netloc.split(","):
         node_str = node_str.strip()
         if not node_str:
@@ -168,30 +189,27 @@ def _parse_cluster_url(
             node_host = node_str
             node_port = 6379
 
-        nodes.append({"host": node_host, "port": node_port})
+        nodes.append(RedisNodeConfig(host=node_host, port=node_port))
 
     if not nodes:
         raise RedisURLParseError("No nodes found in cluster URL")
 
-    config: dict[str, Any] = {
-        "type": "cluster",
-        "nodes": nodes,
-        "password": password,
-        "ssl": ssl,
-    }
-
-    # Add username if provided (for ACL)
-    if username:
-        config["username"] = username
-
-    # Merge extra parameters
-    config.update(extra_params)
-
-    return config
+    # Remaining params go into extra
+    return RedisClusterConfig(
+        nodes=nodes,
+        password=password,
+        username=username,
+        ssl=ssl,
+        extra=extra_params,
+    )
 
 
-def _parse_sentinel_url(parsed: Any, ssl: bool) -> dict[str, Any]:
-    """Parse Redis Sentinel URL."""
+def _parse_sentinel_url(parsed: Any, ssl: bool) -> RedisSentinelConfig:
+    """Parse Redis Sentinel URL.
+
+    Returns:
+        RedisSentinelConfig object with parsed configuration
+    """
     # Format: redis+sentinel://[:password@]service_name[/db]?sentinels=host1:port1,host2:port2
 
     # Service name is the hostname
@@ -220,7 +238,7 @@ def _parse_sentinel_url(parsed: Any, ssl: bool) -> dict[str, Any]:
         raise RedisURLParseError("Sentinel URL must include 'sentinels' query parameter")
 
     sentinels_str = query_params["sentinels"][0]
-    sentinels = []
+    sentinels: list[tuple[str, int]] = []
 
     for sentinel_str in sentinels_str.split(","):
         sentinel_str = sentinel_str.strip()
@@ -246,23 +264,16 @@ def _parse_sentinel_url(parsed: Any, ssl: bool) -> dict[str, Any]:
     extra_query_params = {k: v for k, v in query_params.items() if k != "sentinels"}
     extra_params = _parse_query_params(extra_query_params)
 
-    config: dict[str, Any] = {
-        "type": "sentinel",
-        "service_name": service_name,
-        "sentinels": sentinels,
-        "db": db,
-        "password": password,
-        "ssl": ssl,
-    }
-
-    # Add username if provided
-    if username:
-        config["username"] = username
-
-    # Merge extra parameters
-    config.update(extra_params)
-
-    return config
+    # Remaining params go into extra
+    return RedisSentinelConfig(
+        service_name=service_name,
+        sentinels=sentinels,
+        db=db,
+        password=password,
+        username=username,
+        ssl=ssl,
+        extra=extra_params,
+    )
 
 
 def _parse_query_params(query_params: dict[str, list[str]]) -> dict[str, Any]:
@@ -312,11 +323,10 @@ def create_cache_from_url(url: str, **kwargs: Any) -> Any:
 
     Args:
         url: Redis connection URL
-        **kwargs: Additional arguments to pass to the cache constructor
-                 (e.g., namespace, serializer)
+        **kwargs: Additional arguments (namespace, serializer) to pass to the cache constructor
 
     Returns:
-        Cache instance (RedisCache, RedisClusterCache, or RedisSentinelCache)
+        Cache instance (RedisCache with appropriate configuration)
 
     Raises:
         RedisURLParseError: If URL format is invalid
@@ -330,24 +340,20 @@ def create_cache_from_url(url: str, **kwargs: Any) -> Any:
         ... )
     """
     config = parse_redis_url(url)
-    config_type = config.pop("type")
 
-    # Merge with kwargs (kwargs take precedence)
-    config.update(kwargs)
+    # Merge namespace and serializer from kwargs
+    namespace = kwargs.pop("namespace", None)
+    serializer = kwargs.pop("serializer", None)
 
-    if config_type == "single":
-        from ..backends.redis.sync import RedisCache
-        return RedisCache(**config)
+    # Any remaining kwargs are warnings/errors
+    if kwargs:
+        import warnings
 
-    if config_type == "cluster":
-        from ..backends.redis.cluster import RedisClusterCache
-        return RedisClusterCache(**config)
+        warnings.warn(f"Unknown arguments ignored: {list(kwargs.keys())}", stacklevel=2)
 
-    if config_type == "sentinel":
-        from ..backends.redis.sentinel import RedisSentinelCache
-        return RedisSentinelCache(**config)
+    from ..backends.redis.sync import RedisCache
 
-    raise RedisURLParseError(f"Unknown connection type: {config_type}")
+    return RedisCache(config, namespace=namespace, serializer=serializer)
 
 
 __all__ = [

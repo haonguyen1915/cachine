@@ -7,8 +7,8 @@ from cachine import cached
 
 
 @pytest.mark.asyncio
-async def test_exception_not_cached_and_propagates_async(redis_async_cache: Any) -> None:
-    cache = redis_async_cache
+async def test_exception_not_cached_and_propagates_async(a_redis_cache: Any) -> None:
+    cache = a_redis_cache
     state = {"fail": True, "calls": 0}
 
     @cached(cache, ttl=60)
@@ -29,8 +29,8 @@ async def test_exception_not_cached_and_propagates_async(redis_async_cache: Any)
 
 
 @pytest.mark.asyncio
-async def test_stale_ttl_refresh_error_async(redis_async_cache: Any) -> None:
-    cache = redis_async_cache
+async def test_stale_ttl_refresh_error_async(a_redis_cache: Any) -> None:
+    cache = a_redis_cache
     state = {"fail": False, "n": 0}
 
     @cached(cache, ttl=1, stale_ttl=3, singleflight=True)

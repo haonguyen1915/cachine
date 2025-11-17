@@ -6,8 +6,8 @@ from cachine import cached
 
 
 @pytest.mark.asyncio
-async def test_async_decorator_condition_and_cache_none(redis_async_cache: Any) -> None:
-    cache = redis_async_cache
+async def test_async_decorator_condition_and_cache_none(a_redis_cache: Any) -> None:
+    cache = a_redis_cache
     calls = {"n": 0}
 
     @cached(cache, ttl=60, condition=lambda r: r is not None, cache_none=False)
@@ -24,8 +24,8 @@ async def test_async_decorator_condition_and_cache_none(redis_async_cache: Any) 
 
 
 @pytest.mark.asyncio
-async def test_async_decorator_tags_and_invalidation(redis_async_cache: Any) -> None:
-    cache = redis_async_cache
+async def test_async_decorator_tags_and_invalidation(a_redis_cache: Any) -> None:
+    cache = a_redis_cache
 
     @cached(
         cache,

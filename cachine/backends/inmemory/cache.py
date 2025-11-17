@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from threading import RLock
 from typing import Any, Optional
 
+from ...core.types import HealthStatus
 from ...strategies.eviction import LRUEviction
 
 _MISSING = object()
@@ -368,7 +369,7 @@ class InMemoryCache:
             self._key_to_tags[k] = existing
 
     # Health / lifecycle
-    def ping(self) -> dict[str, Any]:
+    def ping(self) -> HealthStatus:
         """Check health.
 
         Returns:

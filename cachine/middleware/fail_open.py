@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
-from ..core.types import AsyncCache
+from ..core.types import AsyncCache, HealthStatus
 from ..core.types import Cache as SyncCache
 from .base import BaseMiddleware
 
@@ -120,7 +120,7 @@ class FailOpenMiddleware(BaseMiddleware):
             return None
 
     # ---- Health ----
-    def ping(self) -> dict[str, Any]:  # type: ignore[override]
+    def ping(self) -> HealthStatus:  # type: ignore[override]
         try:
             return self._cache.ping()
         except Exception:
@@ -236,7 +236,7 @@ class AsyncFailOpenMiddleware(BaseMiddleware):
             return None
 
     # ---- Health ----
-    async def ping(self) -> dict[str, Any]:  # type: ignore[override]
+    async def ping(self) -> HealthStatus:  # type: ignore[override]
         try:
             return await self._cache.ping()
         except Exception:

@@ -1,30 +1,30 @@
 import os
 import time
-from typing import Any
 
 import pytest
 
 try:
-    from cachine.backends.redis.cluster import RedisClusterCache
+    from cachine.backends.redis.sync import RedisCache
+    from cachine.models.redis_config import RedisClusterConfig, RedisNodeConfig
     from cachine.serializers import JSONSerializer
 except Exception:  # pragma: no cover
-    RedisClusterCache = None  # type: ignore[misc,assignment]
+    RedisCache = None  # type: ignore[misc,assignment]
 
 
 def _truthy(v: str | None) -> bool:
     return (v or "").lower() in {"1", "true", "yes", "on"}
 
 
-def _parse_nodes(env: str | None) -> list[dict[str, Any]]:
+def _parse_nodes(env: str | None) -> list[RedisNodeConfig]:
     if not env:
         return []
-    nodes: list[dict[str, Any]] = []
+    nodes: list[RedisNodeConfig] = []
     for part in env.split(","):
         part = part.strip()
         if not part:
             continue
         host, _, port = part.partition(":")
-        nodes.append({"host": host, "port": int(port or 6379)})
+        nodes.append(RedisNodeConfig(host=host, port=int(port or 6379)))
     return nodes
 
 
@@ -35,7 +35,7 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_redis_cluster_set_get_incr() -> None:
-    if RedisClusterCache is None:
+    if RedisCache is None:
         pytest.skip("redis cluster client is not available")
     # Parse nodes from env: REDIS_CLUSTER_NODES="host1:7000,host2:7001,host3:7002"
     nodes = _parse_nodes(os.getenv("REDIS_CLUSTER_NODES"))
@@ -47,11 +47,14 @@ def test_redis_cluster_set_get_incr() -> None:
     ssl = os.getenv("REDIS_SSL", "false").lower() in {"1", "true", "yes"}
 
     try:
-        cache = RedisClusterCache(
+        config = RedisClusterConfig(
             nodes=nodes,
             username=username,
             password=password,
             ssl=ssl,
+        )
+        cache = RedisCache(
+            config,
             namespace=f"itest:{int(time.time())}",
             serializer=JSONSerializer(),
         )

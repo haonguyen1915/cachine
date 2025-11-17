@@ -6,8 +6,8 @@ from typing import Any
 from cachine.backends.redis.pubsub import RedisInvalidationBus
 
 
-def test_pubsub_invalidation_roundtrip(redis_sync_cache: Any) -> None:
-    cache = redis_sync_cache
+def test_pubsub_invalidation_roundtrip(redis_cache: Any) -> None:
+    cache = redis_cache
     client = cache._require_client()  # internal, but fine for tests
 
     channel = f"cachine:invalidate:test:{uuid.uuid4().hex}"

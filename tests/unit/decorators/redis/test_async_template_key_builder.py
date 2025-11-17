@@ -9,8 +9,8 @@ from cachine.utils.key_builder import template_key_builder
 
 
 @pytest.mark.asyncio
-async def test_async_template_key_builder_redis(redis_async_cache: Any) -> None:
-    cache = redis_async_cache
+async def test_async_template_key_builder_redis(a_redis_cache: Any) -> None:
+    cache = a_redis_cache
     kb = template_key_builder("{ctx.full_name}:pid={pid}")
 
     @cached(cache=cache, ttl=30, key_builder=kb, version="rav1")

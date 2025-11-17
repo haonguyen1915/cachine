@@ -6,8 +6,8 @@ from cachine import cached
 
 
 @pytest.mark.asyncio
-async def test_async_decorator_basic_cache(redis_async_cache: Any) -> None:
-    cache = redis_async_cache
+async def test_async_decorator_basic_cache(a_redis_cache: Any) -> None:
+    cache = a_redis_cache
     calls = {"n": 0}
 
     @cached(cache, ttl=60)
@@ -21,10 +21,10 @@ async def test_async_decorator_basic_cache(redis_async_cache: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_decorator_stale_ttl_refresh(redis_async_cache: Any) -> None:
+async def test_async_decorator_stale_ttl_refresh(a_redis_cache: Any) -> None:
     import asyncio
 
-    cache = redis_async_cache
+    cache = a_redis_cache
     calls = {"n": 0}
 
     @cached(cache, ttl=1, stale_ttl=5, singleflight=True)
