@@ -1,7 +1,9 @@
+from typing import Any
+
 from cachine import InMemoryCache, cached
 
 
-def test_tags_full_invalidation_inmemory():
+def test_tags_full_invalidation_inmemory() -> None:
     cache = InMemoryCache()
     calls = {"n": 0}
 
@@ -12,7 +14,7 @@ def test_tags_full_invalidation_inmemory():
         tags=lambda uid: ["users", f"user:{uid}"],
         tags_from_result=lambda u: [f"role:{u['role']}"] if u else [],
     )
-    def get_user(uid: int):
+    def get_user(uid: int) -> dict[str, Any]:
         calls["n"] += 1
         # Assign role based on uid for test determinism
         return {"id": uid, "role": "admin" if uid == 1 else "member"}
@@ -26,7 +28,7 @@ def test_tags_full_invalidation_inmemory():
     assert calls["n"] == 2
 
     # Invalidate by role tag (only user:1)
-    removed = cache.invalidate_tags(["role:admin"])  # type: ignore[attr-defined]
+    removed = cache.invalidate_tags(["role:admin"])
     assert removed >= 1
     # user 1 should recompute; user 2 remains cached
     assert get_user(1) == {"id": 1, "role": "admin"}
@@ -34,7 +36,7 @@ def test_tags_full_invalidation_inmemory():
     assert calls["n"] == 3
 
     # Invalidate by multiple tags (users + user:2)
-    removed = cache.invalidate_tags(["users", "user:2"])  # type: ignore[attr-defined]
+    removed = cache.invalidate_tags(["users", "user:2"])
     assert removed >= 1
     # Both should recompute now
     assert get_user(1) == {"id": 1, "role": "admin"}

@@ -15,10 +15,12 @@ lint:
 	@echo "🚀 Linting with ruff"
 	poetry run ruff check
 	@echo "🚀 Checking with pylint"
-	poetry run pylint cachine
+	PYLINTHOME=.pylint_cache poetry run pylint cachine
 	@echo "🚀 Checking with mypy"
-	@if command -v mypy >/dev/null 2>&1; then \
+	@if poetry run python -c "import mypy" >/dev/null 2>&1; then \
 		poetry run mypy cachine ; \
+	elif command -v mypy >/dev/null 2>&1; then \
+		mypy cachine ; \
 	else \
 		echo "⚠️  mypy not installed; skipping type check" ; \
 	fi
@@ -31,13 +33,8 @@ lint_test:
 	@echo "🚀 Linting with ruff"
 	poetry run ruff check
 	@echo "🚀 Checking with pylint"
-	poetry run pylint tests
 	@echo "🚀 Checking with mypy"
-	@if command -v mypy >/dev/null 2>&1; then \
-		poetry run mypy tests ; \
-	else \
-		echo "⚠️  mypy not installed; skipping type check" ; \
-	fi
+	poetry run mypy tests
 	@echo "🟢 All checks have passed"
 
 .PHONY: fix
@@ -54,5 +51,3 @@ format:
 test:
 	@echo "🚀 Running tests with pytest"
 	poetry run pytest tests
-
-

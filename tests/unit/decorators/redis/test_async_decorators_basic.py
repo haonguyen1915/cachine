@@ -1,10 +1,12 @@
+from typing import Any
+
 import pytest
 
 from cachine import cached
 
 
 @pytest.mark.asyncio
-async def test_async_decorator_basic_cache(redis_async_cache):
+async def test_async_decorator_basic_cache(redis_async_cache: Any) -> None:
     cache = redis_async_cache
     calls = {"n": 0}
 
@@ -19,7 +21,7 @@ async def test_async_decorator_basic_cache(redis_async_cache):
 
 
 @pytest.mark.asyncio
-async def test_async_decorator_stale_ttl_refresh(redis_async_cache):
+async def test_async_decorator_stale_ttl_refresh(redis_async_cache: Any) -> None:
     import asyncio
 
     cache = redis_async_cache

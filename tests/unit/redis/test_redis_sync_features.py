@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from cachine.backends.redis.sync import RedisCache
 from cachine.serializers import JSONSerializer
 
 
-def test_exists_and_default(redis_sync_cache):
+def test_exists_and_default(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
     assert cache.get("missing", default=123) == 123
     assert cache.exists("missing") in (False, 0)
@@ -12,22 +13,22 @@ def test_exists_and_default(redis_sync_cache):
     assert cache.exists("x") in (True, 1)
 
 
-def test_namespace_isolation(redis_sync_cache):
+def test_namespace_isolation(redis_sync_cache: Any) -> None:
     base = redis_sync_cache
     # Build a second cache with a different namespace but same connection
-    cfg = dict(host=base._cfg["host"], port=base._cfg["port"], db=base._cfg["db"], ssl=base._cfg["ssl"])  # type: ignore[attr-defined]
-    other = RedisCache(namespace="ns2", password=base._password, **cfg)  # type: ignore[attr-defined]
+    cfg = dict(host=base._cfg["host"], port=base._cfg["port"], db=base._cfg["db"], ssl=base._cfg["ssl"])
+    other = RedisCache(namespace="ns2", password=base._password, **cfg)
 
     base.set("k", "v")
     assert base.get("k") == "v"
     assert other.get("k") is None
 
 
-def test_get_or_set(redis_sync_cache):
+def test_get_or_set(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
     calls = {"n": 0}
 
-    def factory():
+    def factory() -> int:
         calls["n"] += 1
         return 42
 
@@ -36,7 +37,7 @@ def test_get_or_set(redis_sync_cache):
     assert calls["n"] == 1
 
 
-def test_expire_expire_at_touch_ttl(redis_sync_cache):
+def test_expire_expire_at_touch_ttl(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
     ser = JSONSerializer()
     cache.set("s", {"x": 1}, serializer=ser)
@@ -52,7 +53,7 @@ def test_expire_expire_at_touch_ttl(redis_sync_cache):
     assert cache.touch("s", ttl=3) is True
 
 
-def test_delete_and_persist(redis_sync_cache):
+def test_delete_and_persist(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
     cache.set("p", "v", ttl=10)
     assert cache.persist("p") in (True, False)
@@ -60,7 +61,7 @@ def test_delete_and_persist(redis_sync_cache):
     assert cache.get("p") is None
 
 
-def test_incr_decr_ttl_on_create(redis_sync_cache):
+def test_incr_decr_ttl_on_create(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
     assert cache.incr("cnt") == 1
     assert cache.decr("cnt") == 0

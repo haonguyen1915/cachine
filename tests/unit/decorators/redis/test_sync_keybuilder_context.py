@@ -1,11 +1,13 @@
+from typing import Any
+
 from cachine import cached
 
 
-def test_key_builder_receives_context_redis(redis_sync_cache):
+def test_key_builder_receives_context_redis(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
     captured = {}
 
-    def kb(ctx, a: int, b: int) -> str:  # ctx is KeyContext
+    def kb(ctx: Any, a: int, b: int) -> str:  # ctx is KeyContext
         captured["module"] = getattr(ctx, "module", None)
         captured["qualname"] = getattr(ctx, "qualname", None)
         captured["full_name"] = getattr(ctx, "full_name", None)

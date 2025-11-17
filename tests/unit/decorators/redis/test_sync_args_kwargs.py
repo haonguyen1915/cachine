@@ -1,7 +1,9 @@
+from typing import Any
+
 from cachine import cached
 
 
-def test_args_only_redis(redis_sync_cache):
+def test_args_only_redis(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
     calls = {"n": 0}
 
@@ -15,7 +17,7 @@ def test_args_only_redis(redis_sync_cache):
     assert calls["n"] == 1
 
 
-def test_kwargs_only_redis(redis_sync_cache):
+def test_kwargs_only_redis(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
     calls = {"n": 0}
 
@@ -29,11 +31,11 @@ def test_kwargs_only_redis(redis_sync_cache):
     assert calls["n"] == 1
 
 
-def test_args_kwargs_equivalence_with_custom_keybuilder_redis(redis_sync_cache):
+def test_args_kwargs_equivalence_with_custom_keybuilder_redis(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
     calls = {"n": 0}
 
-    def kb(*args, **kwargs):
+    def kb(*args: Any, **kwargs: Any) -> str:
         if args and hasattr(args[0], "full_name"):
             args = args[1:]
         if len(args) >= 2:

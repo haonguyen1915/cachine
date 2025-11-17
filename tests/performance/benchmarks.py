@@ -40,7 +40,7 @@ def measure_throughput(fn: Callable[[], None], *, iterations: int) -> float:
 
 
 @perf_enabled
-def test_perf_placeholder_smoke():
+def test_perf_placeholder_smoke() -> None:
     # Simple micro benchmark to ensure harness works
     N = int(os.getenv("PERF_N", "10000"))
     counter = {"x": 0}

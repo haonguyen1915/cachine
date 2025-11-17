@@ -1,8 +1,10 @@
+from typing import Any
+
 from cachine import InMemoryCache, cached
 from cachine.decorators.cached import KeyContext
 
 
-def test_args_only_inmemory():
+def test_args_only_inmemory() -> None:
     cache = InMemoryCache()
     calls = {"n": 0}
 
@@ -16,7 +18,7 @@ def test_args_only_inmemory():
     assert calls["n"] == 1
 
 
-def test_kwargs_only_inmemory():
+def test_kwargs_only_inmemory() -> None:
     cache = InMemoryCache()
     calls = {"n": 0}
 
@@ -30,11 +32,11 @@ def test_kwargs_only_inmemory():
     assert calls["n"] == 1
 
 
-def test_args_kwargs_equivalence_with_custom_keybuilder_inmemory():
+def test_args_kwargs_equivalence_with_custom_keybuilder_inmemory() -> None:
     cache = InMemoryCache()
     calls = {"n": 0}
 
-    def kb(_ctx: KeyContext, *args, **kwargs):
+    def kb(_ctx: KeyContext, *args: Any, **kwargs: Any) -> str:
         # Normalize to (a, b) regardless of how they were passed; ignore KeyContext if present
         if len(args) >= 2:
             a, b = args[0], args[1]

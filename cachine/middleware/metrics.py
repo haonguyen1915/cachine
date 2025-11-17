@@ -4,6 +4,7 @@ import inspect
 import time
 from typing import Any
 
+from cachine.core.types import CacheLike
 from cachine.middleware.base import BaseMiddleware
 
 _SENTINEL = object()
@@ -20,7 +21,7 @@ class MetricsMiddleware(BaseMiddleware):
         cache (Any): Wrapped cache instance.
     """
 
-    def __init__(self, cache: Any) -> None:
+    def __init__(self, cache: CacheLike) -> None:
         super().__init__(cache)
         self._hits = 0
         self._misses = 0

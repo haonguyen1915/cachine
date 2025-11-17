@@ -46,6 +46,7 @@ Stop waiting for slow API calls, database queries, and expensive computations. C
   - [📊 Track Cache Performance](#-track-cache-performance)
   - [🗜️ Compress Large Values](#️-compress-large-values)
   - [🔐 Encrypt Sensitive Data](#-encrypt-sensitive-data)
+  - [🛟 Fail-Open (Keep Running if Redis Fails)](#-fail-open-keep-running-if-redis-fails)
   - [🔗 Stack Multiple Middleware](#-stack-multiple-middleware)
 - [Serializers](#serializers)
 - [Configuration & Factory](#configuration--factory)
@@ -562,6 +563,36 @@ cache.set("api_key", "secret-api-key-xyz")
 
 # Automatically decrypted on get
 ssn = cache.get("user_ssn")  # "123-45-6789"
+```
+
+### 🛟 Fail-Open (Keep Running if Redis Fails)
+
+Ensure your app still works when Redis is down. Wrap caches with a fail‑open middleware; reads return defaults and writes become no‑ops during outages.
+
+Sync:
+```python
+from cachine import RedisCache
+from cachine.middleware.fail_open import FailOpenMiddleware
+
+base = RedisCache(host="localhost", namespace="myapp")
+cache = FailOpenMiddleware(base)
+
+@cached(cache=cache, ttl=60)
+def compute(x):
+    return x * 2  # still runs even if Redis errors
+```
+
+Async:
+```python
+from cachine import AsyncRedisCache
+from cachine.middleware.fail_open import AsyncFailOpenMiddleware
+
+base = AsyncRedisCache(host="localhost", namespace="myapp")
+cache = AsyncFailOpenMiddleware(base)
+
+@cached(cache=cache, ttl=60)
+async def fetch(uid):
+    return {"id": uid}
 ```
 
 ### 🔗 Stack Multiple Middleware

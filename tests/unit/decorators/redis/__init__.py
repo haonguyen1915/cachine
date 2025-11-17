@@ -1,1 +1,1 @@
-
+"""Redis decorator tests."""

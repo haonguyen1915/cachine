@@ -3,7 +3,7 @@ import hashlib
 from cachine import InMemoryCache, cached
 
 
-def test_cached_decorator_full_config_inmemory():
+def test_cached_decorator_full_config_inmemory() -> None:
     cache = InMemoryCache()
     calls = {"n": 0}
 

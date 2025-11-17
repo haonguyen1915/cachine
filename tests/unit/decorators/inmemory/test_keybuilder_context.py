@@ -2,7 +2,7 @@ from cachine import InMemoryCache, cached
 from cachine.decorators.cached import KeyContext
 
 
-def test_key_builder_receives_context_inmemory():
+def test_key_builder_receives_context_inmemory() -> None:
     cache = InMemoryCache()
     captured = {}
 

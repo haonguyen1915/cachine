@@ -6,6 +6,7 @@ from typing import Any, Literal
 from .backends.inmemory.cache import InMemoryCache
 from .backends.redis.async_ import AsyncRedisCache
 from .backends.redis.sync import RedisCache
+from .core.types import CacheLike
 
 
 def _parse_float(v: str | None) -> float | None:
@@ -18,7 +19,7 @@ def _parse_float(v: str | None) -> float | None:
 class _CacheFactory:
     """Factory for constructing caches from dict or environment configuration."""
 
-    def __call__(self, config: dict[str, Any], mode: Literal["async", "sync"] = "async") -> Any:
+    def __call__(self, config: dict[str, Any], mode: Literal["async", "sync"] = "async") -> CacheLike:
         """Create a cache from a configuration mapping.
 
         Args:
@@ -27,7 +28,7 @@ class _CacheFactory:
             mode (Literal["async", "sync"]): Redis mode to use. In-memory is always sync.
 
         Returns:
-            Any: Cache instance.
+            CacheLike: Cache instance.
         """
         backend = (config.get("backend") or "inmemory").lower()
         if backend == "inmemory":
@@ -53,7 +54,7 @@ class _CacheFactory:
             return RedisCache(**common)
         raise ValueError(f"Unknown backend: {backend}")
 
-    def from_env(self, mode: Literal["async", "sync"] = "sync") -> Any:
+    def from_env(self, mode: Literal["async", "sync"] = "sync") -> CacheLike:
         """Create a cache from environment variables.
 
         Reads variables prefixed with ``CACHE_`` such as ``CACHE_BACKEND``, ``CACHE_HOST``.
@@ -62,7 +63,7 @@ class _CacheFactory:
             mode (Literal["async", "sync"]): Redis mode to use when backend is "redis".
 
         Returns:
-            Any: Cache instance.
+            CacheLike: Cache instance.
         """
         backend = os.getenv("CACHE_BACKEND", "inmemory").lower()
         if backend == "inmemory":

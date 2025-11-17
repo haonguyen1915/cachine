@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from cachine import InMemoryCache, cached
 
 
-def test_key_builder_failure_logs_warning_and_falls_back(caplog):
+def test_key_builder_failure_logs_warning_and_falls_back(caplog: Any) -> None:
     cache = InMemoryCache()
 
-    def bad_builder(*_a, **_k):  # always fail
+    def bad_builder(*_a: Any, **_k: Any) -> str:  # always fail
         raise TypeError("boom")
 
     calls = {"n": 0}

@@ -1,1 +1,1 @@
-
+"""In-memory decorator tests."""

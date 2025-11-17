@@ -1,11 +1,12 @@
 import time
+from typing import Any
 
 import pytest
 
 from cachine import cached
 
 
-def test_exception_not_cached_and_propagates_redis(redis_sync_cache):
+def test_exception_not_cached_and_propagates_redis(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
     state = {"fail": True, "calls": 0}
 
@@ -26,7 +27,7 @@ def test_exception_not_cached_and_propagates_redis(redis_sync_cache):
     assert state["calls"] == 2
 
 
-def test_stale_ttl_refresh_error_redis(redis_sync_cache):
+def test_stale_ttl_refresh_error_redis(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
     state = {"fail": False, "n": 0}
 

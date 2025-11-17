@@ -1,6 +1,7 @@
 import hashlib
 import time
 from threading import Barrier, Thread
+from typing import Any
 
 from cachine import cached
 
@@ -9,7 +10,7 @@ def _kb(a: int, b: int) -> str:
     return f"sum:{hashlib.sha256(f'{a}:{b}'.encode()).hexdigest()}"
 
 
-def test_redis_decorator_full_config(redis_sync_cache):
+def test_redis_decorator_full_config(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
     calls = {"n": 0}
 
@@ -36,7 +37,7 @@ def test_redis_decorator_full_config(redis_sync_cache):
     assert calls["n"] == 1
 
     # Invalidate by tag and recompute
-    removed = cache.invalidate_tags(["math"])  # type: ignore[attr-defined]
+    removed = cache.invalidate_tags(["math"])
     assert removed >= 1
     assert add(1, 2) == 3
     assert calls["n"] == 2
@@ -51,7 +52,7 @@ def test_redis_decorator_full_config(redis_sync_cache):
     assert calls["n"] >= 3
 
 
-def test_redis_decorator_version_isolation(redis_sync_cache):
+def test_redis_decorator_version_isolation(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
 
     @cached(cache, ttl=60, key_builder=_kb, version="v1")
@@ -67,7 +68,7 @@ def test_redis_decorator_version_isolation(redis_sync_cache):
     assert f2(1, 2) == 200
 
 
-def test_redis_decorator_singleflight_concurrency(redis_sync_cache):
+def test_redis_decorator_singleflight_concurrency(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
     calls = {"n": 0}
 
@@ -80,7 +81,7 @@ def test_redis_decorator_singleflight_concurrency(redis_sync_cache):
     barrier = Barrier(3)
     results = {}
 
-    def worker(i):
+    def worker(i: int) -> None:
         barrier.wait()
         results[i] = slow(1, 2)
 

@@ -1,10 +1,12 @@
+from typing import Any
+
 import pytest
 
 from cachine import cached
 
 
 @pytest.mark.asyncio
-async def test_async_args_only(redis_async_cache):
+async def test_async_args_only(redis_async_cache: Any) -> None:
     cache = redis_async_cache
     calls = {"n": 0}
 
@@ -19,7 +21,7 @@ async def test_async_args_only(redis_async_cache):
 
 
 @pytest.mark.asyncio
-async def test_async_kwargs_only(redis_async_cache):
+async def test_async_kwargs_only(redis_async_cache: Any) -> None:
     cache = redis_async_cache
     calls = {"n": 0}
 
@@ -34,11 +36,11 @@ async def test_async_kwargs_only(redis_async_cache):
 
 
 @pytest.mark.asyncio
-async def test_async_args_kwargs_equivalence_with_custom_keybuilder(redis_async_cache):
+async def test_async_args_kwargs_equivalence_with_custom_keybuilder(redis_async_cache: Any) -> None:
     cache = redis_async_cache
     calls = {"n": 0}
 
-    def kb(*args, **kwargs):
+    def kb(*args: Any, **kwargs: Any) -> str:
         if args and hasattr(args[0], "full_name"):
             args = args[1:]
         if len(args) >= 2:

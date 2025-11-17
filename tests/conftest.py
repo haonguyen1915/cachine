@@ -1,16 +1,17 @@
 import os
+from typing import Any
 
 import pytest
 
 try:
-    import pytest_asyncio  # type: ignore
+    import pytest_asyncio
 except Exception:  # pragma: no cover - optional
-    pytest_asyncio = None  # type: ignore
+    pytest_asyncio = None  # type: ignore[assignment]
 try:
-    from dotenv import load_dotenv  # type: ignore
+    from dotenv import load_dotenv
 except Exception:  # pragma: no cover - optional
 
-    def load_dotenv():
+    def load_dotenv() -> None:  # type: ignore[misc]
         return None
 
 
@@ -24,7 +25,7 @@ except Exception:
 
 
 @pytest.fixture
-def inmemory_cache():
+def inmemory_cache() -> Any:
     from cachine import InMemoryCache
 
     return InMemoryCache()
@@ -37,7 +38,7 @@ def _truthy(v: str | None) -> bool:
     return (v or "").lower() in {"1", "true", "yes", "on"}
 
 
-def _redis_cfg_from_env():
+def _redis_cfg_from_env() -> dict[str, Any]:
     host = os.getenv("REDIS_HOST", os.getenv("CACHE_HOST", "localhost"))
     port = int(os.getenv("REDIS_PORT", os.getenv("CACHE_PORT", "6379")))
     db = int(os.getenv("REDIS_DB", os.getenv("CACHE_DB", "0")))
@@ -47,7 +48,7 @@ def _redis_cfg_from_env():
 
 
 @pytest.fixture
-def redis_sync_cache():
+def redis_sync_cache() -> Any:
     """Real Redis sync cache configured via env.
 
     Enable by setting RUN_REDIS_TESTS to a truthy value.
@@ -81,12 +82,12 @@ def redis_sync_cache():
 
 if pytest_asyncio:
 
-    @pytest_asyncio.fixture  # type: ignore[misc]
-    async def redis_async_cache():
+    @pytest_asyncio.fixture
+    async def redis_async_cache() -> Any:
         if not _truthy(os.getenv("RUN_REDIS_TESTS")):
             pytest.skip("RUN_REDIS_TESTS not enabled")
         try:
-            import redis.asyncio  # type: ignore  # noqa: F401
+            import redis.asyncio  # noqa: F401
         except Exception:
             pytest.skip("redis.asyncio is not available")
 
@@ -109,5 +110,5 @@ if pytest_asyncio:
 else:
 
     @pytest.fixture
-    def redis_async_cache():
+    def redis_async_cache() -> None:
         pytest.skip("pytest-asyncio not installed; install pytest-asyncio to use redis_async_cache")

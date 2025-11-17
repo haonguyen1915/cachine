@@ -1,11 +1,12 @@
 import time
 import uuid
 from threading import Thread
+from typing import Any
 
 from cachine.backends.redis.pubsub import RedisInvalidationBus
 
 
-def test_pubsub_invalidation_roundtrip(redis_sync_cache):
+def test_pubsub_invalidation_roundtrip(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
     client = cache._require_client()  # internal, but fine for tests
 
@@ -13,9 +14,9 @@ def test_pubsub_invalidation_roundtrip(redis_sync_cache):
     ns = "ut-ns"
     bus = RedisInvalidationBus(client, channel=channel, namespace=ns)
 
-    events = []
+    events: list[dict[str, Any]] = []
 
-    def handler(event: dict) -> None:
+    def handler(event: dict[str, Any]) -> None:
         events.append(event)
 
     t = Thread(target=bus.run_forever, args=(handler,), daemon=True)

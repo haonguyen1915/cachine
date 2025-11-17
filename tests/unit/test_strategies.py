@@ -2,7 +2,7 @@ from cachine import InMemoryCache
 from cachine.strategies import TagBasedInvalidation
 
 
-def test_tag_invalid_stub():
+def test_tag_invalid_stub() -> None:
     inv = TagBasedInvalidation(InMemoryCache())
     # Just ensure methods exist; no real behavior in scaffold
     # async wrappers are not exercised here.

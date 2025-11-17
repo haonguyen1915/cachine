@@ -1,14 +1,15 @@
 import time
 from threading import Barrier, Thread
+from typing import Any
 
 from cachine import cached
 
 
-def test_redis_cached_basic(redis_sync_cache):
+def test_redis_cached_basic(redis_sync_cache: Any) -> None:
     calls = {"n": 0}
 
     @cached(redis_sync_cache, ttl=30)
-    def add(a, b):
+    def add(a: int, b: int) -> int:
         calls["n"] += 1
         return a + b
 
@@ -17,11 +18,11 @@ def test_redis_cached_basic(redis_sync_cache):
     assert calls["n"] == 1
 
 
-def test_redis_singleflight(redis_sync_cache):
+def test_redis_singleflight(redis_sync_cache: Any) -> None:
     calls = {"n": 0}
 
     @cached(redis_sync_cache, ttl=30, singleflight=True)
-    def slow_add(a, b):
+    def slow_add(a: int, b: int) -> int:
         calls["n"] += 1
         time.sleep(0.05)
         return a + b
@@ -29,7 +30,7 @@ def test_redis_singleflight(redis_sync_cache):
     barrier = Barrier(3)
     results = {}
 
-    def worker(i):
+    def worker(i: int) -> None:
         barrier.wait()
         results[i] = slow_add(1, 2)
 
@@ -45,11 +46,11 @@ def test_redis_singleflight(redis_sync_cache):
     assert calls["n"] == 1
 
 
-def test_redis_stale_ttl_refresh(redis_sync_cache):
+def test_redis_stale_ttl_refresh(redis_sync_cache: Any) -> None:
     calls = {"n": 0}
 
     @cached(redis_sync_cache, ttl=1, stale_ttl=5, singleflight=True)
-    def expensive():
+    def expensive() -> int:
         calls["n"] += 1
         return calls["n"]
 

@@ -1,8 +1,9 @@
+
 from cachine import InMemoryCache, cached
 from cachine.decorators.cached import KeyContext
 
 
-def test_instance_method_caching_inmemory():
+def test_instance_method_caching_inmemory() -> None:
     cache = InMemoryCache()
 
     class Service:
@@ -21,7 +22,7 @@ def test_instance_method_caching_inmemory():
     assert s.calls == 1
 
 
-def test_staticmethod_caching_inmemory():
+def test_staticmethod_caching_inmemory() -> None:
     cache = InMemoryCache()
 
     class Util:
@@ -38,7 +39,7 @@ def test_staticmethod_caching_inmemory():
     assert Util.calls == 1
 
 
-def test_classmethod_caching_inmemory():
+def test_classmethod_caching_inmemory() -> None:
     cache = InMemoryCache()
 
     class Counter:
@@ -55,7 +56,7 @@ def test_classmethod_caching_inmemory():
     assert Counter.calls == 1
 
 
-def test_instance_method_default_keybuilder_inmemory():
+def test_instance_method_default_keybuilder_inmemory() -> None:
     cache = InMemoryCache()
 
     class Service:
@@ -82,7 +83,7 @@ def test_instance_method_default_keybuilder_inmemory():
     assert s2.calls == 1
 
 
-def test_instance_method_keybuilder_with_context_inmemory():
+def test_instance_method_keybuilder_with_context_inmemory() -> None:
     cache = InMemoryCache()
     captured = {}
 
@@ -106,11 +107,11 @@ def test_instance_method_keybuilder_with_context_inmemory():
     assert s.add(1, 2) == 3
     assert s.add(1, 2) == 3
     assert s.calls == 1
-    assert isinstance(captured.get("qualname"), str) and "add" in captured["qualname"]
+    assert isinstance(captured.get("qualname"), str) and "add" in captured["qualname"]  # type: ignore[operator]
     assert isinstance(captured.get("full_name"), str)
 
 
-def test_staticmethod_with_keybuilder_inmemory():
+def test_staticmethod_with_keybuilder_inmemory() -> None:
     cache = InMemoryCache()
     captured = {}
 
@@ -132,11 +133,11 @@ def test_staticmethod_with_keybuilder_inmemory():
     assert Util.mul(2, 3) == 6
     assert Util.mul(2, 3) == 6  # Should hit cache
     assert Util.calls == 1
-    assert "mul" in captured.get("qualname", "")
+    assert "mul" in captured.get("qualname", "")  # type: ignore[operator]
     assert isinstance(captured.get("full_name"), str)
 
 
-def test_classmethod_with_keybuilder_inmemory():
+def test_classmethod_with_keybuilder_inmemory() -> None:
     cache = InMemoryCache()
     captured = {}
 
@@ -159,5 +160,5 @@ def test_classmethod_with_keybuilder_inmemory():
     assert Counter.inc(5) == 6
     assert Counter.inc(5) == 6  # Should hit cache
     assert Counter.calls == 1
-    assert "inc" in captured.get("qualname", "")
+    assert "inc" in captured.get("qualname", "")  # type: ignore[operator]
     assert captured.get("cls_name") == "Counter"

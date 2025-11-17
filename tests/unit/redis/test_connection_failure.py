@@ -21,7 +21,7 @@ class FlakyClient:
         self.store[name] = value
         return True
 
-    def get(self, name: str):  # noqa: ANN001 - mimic redis-py typing
+    def get(self, name: str) -> object | None:
         if self.fail:
             raise RuntimeError("connection lost")
         return self.store.get(name)
@@ -65,12 +65,13 @@ class FlakyClient:
     def incrby(self, name: str, delta: int) -> int:  # noqa: ARG002
         if self.fail:
             raise RuntimeError("connection lost")
-        val = int(self.store.get(name, 0)) + int(delta)
+        current: int = int(self.store.get(name, 0))
+        val: int = current + delta
         self.store[name] = val
         return val
 
     # ---- Scanning / bulk ----
-    def scan_iter(self, match: str, count: int | None = None):  # noqa: ARG002
+    def scan_iter(self, match: str, count: int | None = None) -> object:  # noqa: ARG002
         if self.fail:
             raise RuntimeError("connection lost")
         return iter([])
@@ -94,7 +95,7 @@ class FlakyClient:
             raise RuntimeError("connection lost")
         return 0
 
-    def pubsub(self):  # pragma: no cover - unused in these tests
+    def pubsub(self) -> object:  # pragma: no cover - unused in these tests
         if self.fail:
             raise RuntimeError("connection lost")
         return object()
@@ -150,7 +151,7 @@ def test_sync_redis_connection_loss_raises_on_ops_and_clear_is_safe() -> None:
 
 # ----- Async variant (skipped if pytest-asyncio is unavailable) -----
 try:  # pragma: no cover - import guard for optional dependency
-    import pytest_asyncio as _pytest_asyncio  # type: ignore  # noqa: F401
+    import pytest_asyncio as _pytest_asyncio  # noqa: F401
     HAS_ASYNC_TESTS = True
 except Exception:  # pragma: no cover - optional
     HAS_ASYNC_TESTS = False
@@ -170,7 +171,7 @@ class AsyncFlakyClient:
         self.store[name] = value
         return True
 
-    async def get(self, name: str):  # noqa: ANN001 - mimic redis-py typing
+    async def get(self, name: str) -> object | None:
         if self.fail:
             raise RuntimeError("connection lost")
         return self.store.get(name)
@@ -214,20 +215,22 @@ class AsyncFlakyClient:
     async def incrby(self, name: str, delta: int) -> int:  # noqa: ARG002
         if self.fail:
             raise RuntimeError("connection lost")
-        val = int(self.store.get(name, 0)) + int(delta)
+        current: int = int(self.store.get(name, 0))
+        val: int = current + delta
         self.store[name] = val
         return val
 
-    async def eval(self, script: str, numkeys: int, *keys_and_args):  # noqa: ARG002, ANN002
+    async def eval(self, script: str, numkeys: int, *keys_and_args: object) -> None:  # noqa: ARG002
         if self.fail:
             raise RuntimeError("connection lost")
         return None
 
     # ---- Scanning / bulk ----
-    async def scan_iter(self, match: str):  # noqa: ARG002
+    async def scan_iter(self, match: str) -> object:  # noqa: ARG002
         if self.fail:
             raise RuntimeError("connection lost")
-        async def _gen():  # pragma: no cover - not used in this test
+
+        async def _gen() -> object:  # pragma: no cover - not used in this test
             for k in list(self.store.keys()):
                 yield k
         return _gen()
@@ -251,7 +254,7 @@ class AsyncFlakyClient:
             raise RuntimeError("connection lost")
         return 0
 
-    def pubsub(self):  # pragma: no cover - unused in these tests
+    def pubsub(self) -> object:  # pragma: no cover - unused in these tests
         if self.fail:
             raise RuntimeError("connection lost")
         return object()

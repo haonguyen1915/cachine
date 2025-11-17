@@ -1,5 +1,6 @@
 import os
 import time
+from typing import Any
 
 import pytest
 
@@ -7,17 +8,17 @@ try:
     from cachine.backends.redis.cluster import RedisClusterCache
     from cachine.serializers import JSONSerializer
 except Exception:  # pragma: no cover
-    RedisClusterCache = None  # type: ignore
+    RedisClusterCache = None  # type: ignore[misc,assignment]
 
 
 def _truthy(v: str | None) -> bool:
     return (v or "").lower() in {"1", "true", "yes", "on"}
 
 
-def _parse_nodes(env: str | None):
+def _parse_nodes(env: str | None) -> list[dict[str, Any]]:
     if not env:
         return []
-    nodes = []
+    nodes: list[dict[str, Any]] = []
     for part in env.split(","):
         part = part.strip()
         if not part:
@@ -33,7 +34,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def test_redis_cluster_set_get_incr():
+def test_redis_cluster_set_get_incr() -> None:
     if RedisClusterCache is None:
         pytest.skip("redis cluster client is not available")
     # Parse nodes from env: REDIS_CLUSTER_NODES="host1:7000,host2:7001,host3:7002"

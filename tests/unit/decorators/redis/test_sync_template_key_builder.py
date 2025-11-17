@@ -1,16 +1,18 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from cachine import cached
 
 
 @pytest.mark.usefixtures("redis_sync_cache")
-def test_sync_template_key_builder_redis(redis_sync_cache):  # type: ignore[no-redef]
+def test_sync_template_key_builder_redis(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
 
     @cached(cache=cache, ttl=30, key_builder="{ctx.full_name}:{uid}", version="rv1")
-    def get_user(uid: int) -> dict:
+    def get_user(uid: int) -> dict[str, int]:
         return {"id": uid}
 
     u = get_user(5)

@@ -7,7 +7,7 @@ from cachine.middleware import CompressionMiddleware, EncryptionMiddleware, Metr
 from cachine.serializers import JSONSerializer, PickleSerializer
 
 
-def test_middleware_stack_inmemory_basic():
+def test_middleware_stack_inmemory_basic() -> None:
     """Test that compression, encryption, and metrics middleware work together correctly.
 
     This test verifies:
@@ -19,8 +19,8 @@ def test_middleware_stack_inmemory_basic():
     """
     base = InMemoryCache(namespace="mw")
     cache = CompressionMiddleware(base, algorithm="gzip", min_size=0)
-    cache = EncryptionMiddleware(cache, key="secret-key-123", key_id="v1")
-    cache = MetricsMiddleware(cache)
+    cache = EncryptionMiddleware(cache, key="secret-key-123", key_id="v1")  # type: ignore[assignment]
+    cache = MetricsMiddleware(cache)  # type: ignore[arg-type,assignment]
     serializer = JSONSerializer()
 
     # Test data - will be serialized, compressed, and encrypted
@@ -60,14 +60,14 @@ def test_middleware_stack_inmemory_basic():
     assert cache.get("test_key", serializer=serializer) is None
 
 
-def test_middleware_forwards_invalidate_tags():
+def test_middleware_forwards_invalidate_tags() -> None:
     """Test that middleware properly forwards invalidate_tags to underlying cache."""
     base = InMemoryCache(namespace="mw2")
     cache = MetricsMiddleware(base)
 
     cache.set("user:1", {"id": 1})
     # add tags via backend helper and use invalidate through middleware
-    base.add_tags("user:1", ["users", "user:1"])  # type: ignore[attr-defined]
+    base.add_tags("user:1", ["users", "user:1"])
     stats = cache.get_stats()
     pprint.pprint(stats)
     removed = cache.invalidate_tags(["users"])  # forwarded
@@ -75,7 +75,7 @@ def test_middleware_forwards_invalidate_tags():
     assert cache.get("user:1") is None
 
 
-def test_compression_middleware_gzip():
+def test_compression_middleware_gzip() -> None:
     """Test compression middleware with gzip algorithm."""
     base = InMemoryCache(namespace="comp_gzip")
     cache = CompressionMiddleware(base, algorithm="gzip", min_size=0)
@@ -90,7 +90,7 @@ def test_compression_middleware_gzip():
     assert cache.get("large") == large_data
 
 
-def test_compression_middleware_zlib():
+def test_compression_middleware_zlib() -> None:
     """Test compression middleware with zlib algorithm."""
     base = InMemoryCache(namespace="comp_zlib")
     cache = CompressionMiddleware(base, algorithm="zlib", min_size=0)
@@ -100,7 +100,7 @@ def test_compression_middleware_zlib():
     assert cache.get("key") == data
 
 
-def test_compression_middleware_min_size():
+def test_compression_middleware_min_size() -> None:
     """Test compression middleware with min_size threshold."""
     base = InMemoryCache(namespace="comp_min")
     cache = CompressionMiddleware(base, algorithm="gzip", min_size=100)
@@ -124,7 +124,7 @@ def test_compression_middleware_min_size():
     assert cache.get("large") == large_data
 
 
-def test_compression_middleware_with_serializer():
+def test_compression_middleware_with_serializer() -> None:
     """Test compression middleware with JSON serializer (passed to get/set)."""
     base = InMemoryCache(namespace="comp_ser")
     cache = CompressionMiddleware(base, algorithm="gzip", min_size=0)
@@ -136,7 +136,7 @@ def test_compression_middleware_with_serializer():
     assert result == data
 
 
-def test_encryption_middleware_basic():
+def test_encryption_middleware_basic() -> None:
     """Test basic encryption and decryption."""
     base = InMemoryCache(namespace="enc_basic")
     cache = EncryptionMiddleware(base, key="my-secret-key", key_id="v1")
@@ -153,7 +153,7 @@ def test_encryption_middleware_basic():
     assert "data" in raw
 
 
-def test_encryption_middleware_with_serializer():
+def test_encryption_middleware_with_serializer() -> None:
     """Test encryption middleware with serializer (passed to get/set)."""
     base = InMemoryCache(namespace="enc_ser")
     cache = EncryptionMiddleware(base, key="secret123", key_id="v2")
@@ -165,7 +165,7 @@ def test_encryption_middleware_with_serializer():
     assert result == data
 
 
-def test_encryption_middleware_different_keys():
+def test_encryption_middleware_different_keys() -> None:
     """Test encryption with different key IDs."""
     base = InMemoryCache(namespace="enc_keys")
     cache1 = EncryptionMiddleware(base, key="key1", key_id="v1")
@@ -178,7 +178,7 @@ def test_encryption_middleware_different_keys():
     assert cache2.get("data2") == "encrypted with key2"
 
 
-def test_metrics_middleware_hit_miss():
+def test_metrics_middleware_hit_miss() -> None:
     """Test metrics middleware tracks hits and misses correctly."""
     base = InMemoryCache(namespace="metrics")
     cache = MetricsMiddleware(base)
@@ -210,7 +210,7 @@ def test_metrics_middleware_hit_miss():
     assert stats["misses"] == 1
 
 
-def test_metrics_middleware_hit_rate():
+def test_metrics_middleware_hit_rate() -> None:
     """Test hit rate calculation in metrics."""
     base = InMemoryCache(namespace="metrics_rate")
     cache = MetricsMiddleware(base)
@@ -230,12 +230,12 @@ def test_metrics_middleware_hit_rate():
     assert stats["hit_rate"] == pytest.approx(2.0 / 3.0)
 
 
-def test_full_middleware_stack():
+def test_full_middleware_stack() -> None:
     """Test full stack: Compression -> Encryption -> Metrics."""
     base = InMemoryCache(namespace="full_stack")
     cache = CompressionMiddleware(base, algorithm="gzip", min_size=50)
-    cache = EncryptionMiddleware(cache, key="super-secret", key_id="prod-v1")
-    cache = MetricsMiddleware(cache)
+    cache = EncryptionMiddleware(cache, key="super-secret", key_id="prod-v1")  # type: ignore[assignment]
+    cache = MetricsMiddleware(cache)  # type: ignore[arg-type,assignment]
     serializer = PickleSerializer()
 
     # Complex data that will be serialized, compressed, and encrypted
@@ -256,12 +256,12 @@ def test_full_middleware_stack():
     assert stats["avg_latency_ms"] > 0
 
 
-def test_middleware_get_default_value():
+def test_middleware_get_default_value() -> None:
     """Test that default values work through middleware stack."""
     base = InMemoryCache(namespace="defaults")
     cache = CompressionMiddleware(base, algorithm="gzip")
-    cache = EncryptionMiddleware(cache, key="key")
-    cache = MetricsMiddleware(cache)
+    cache = EncryptionMiddleware(cache, key="key")  # type: ignore[assignment]
+    cache = MetricsMiddleware(cache)  # type: ignore[arg-type,assignment]
 
     # Get non-existent key with default
     result = cache.get("nonexistent", default="default_value")
@@ -272,11 +272,11 @@ def test_middleware_get_default_value():
     assert stats["misses"] == 1
 
 
-def test_middleware_delete_through_stack():
+def test_middleware_delete_through_stack() -> None:
     """Test delete operation through middleware stack."""
     base = InMemoryCache(namespace="delete_test")
     cache = CompressionMiddleware(base, algorithm="gzip")
-    cache = EncryptionMiddleware(cache, key="key")
+    cache = EncryptionMiddleware(cache, key="key")  # type: ignore[assignment]
 
     cache.set("key", "value")
     assert cache.get("key") == "value"
@@ -289,11 +289,11 @@ def test_middleware_delete_through_stack():
     assert cache.get("key") is None
 
 
-def test_middleware_exists_through_stack():
+def test_middleware_exists_through_stack() -> None:
     """Test exists operation through middleware stack."""
     base = InMemoryCache(namespace="exists_test")
     cache = CompressionMiddleware(base, algorithm="gzip")
-    cache = EncryptionMiddleware(cache, key="key")
+    cache = EncryptionMiddleware(cache, key="key")  # type: ignore[assignment]
 
     assert cache.exists("key") is False
 
@@ -304,7 +304,7 @@ def test_middleware_exists_through_stack():
     assert cache.exists("key") is False
 
 
-def test_compression_invalid_algorithm():
+def test_compression_invalid_algorithm() -> None:
     """Test that invalid compression algorithm raises error."""
     base = InMemoryCache(namespace="invalid_algo")
     cache = CompressionMiddleware(base, algorithm="invalid")

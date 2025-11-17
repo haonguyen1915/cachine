@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import os
 import time
+from typing import Any
 
 import pytest
 
 from cachine import cached
 
 try:
-    import pytest_asyncio  # type: ignore  # noqa: F401
+    import pytest_asyncio  # noqa: F401
 
     HAS_ASYNCIO = True
 except Exception:  # pragma: no cover
@@ -23,7 +24,7 @@ perf_enabled = pytest.mark.skipif(not _truthy(os.getenv("RUN_PERF_TESTS")), reas
 
 
 @perf_enabled
-def test_redis_sync_set_get_throughput(redis_sync_cache) -> None:  # type: ignore[no-redef]
+def test_redis_sync_set_get_throughput(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
     N = int(os.getenv("PERF_N_REDIS", os.getenv("PERF_N", "2000")))
 
@@ -41,7 +42,7 @@ def test_redis_sync_set_get_throughput(redis_sync_cache) -> None:  # type: ignor
 
 
 @perf_enabled
-def test_redis_sync_cached_hit_latency_improvement(redis_sync_cache) -> None:  # type: ignore[no-redef]
+def test_redis_sync_cached_hit_latency_improvement(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
 
     def slow(x: int) -> int:
@@ -73,7 +74,7 @@ def test_redis_sync_cached_hit_latency_improvement(redis_sync_cache) -> None:  #
 @perf_enabled
 @pytest.mark.skipif(not HAS_ASYNCIO, reason="pytest-asyncio not installed")
 @pytest.mark.asyncio
-async def test_redis_async_set_get_throughput(redis_async_cache) -> None:  # type: ignore[no-redef]
+async def test_redis_async_set_get_throughput(redis_async_cache: Any) -> None:
     cache = redis_async_cache
     N = int(os.getenv("PERF_N_REDIS", os.getenv("PERF_N", "1500")))
 
@@ -91,7 +92,7 @@ async def test_redis_async_set_get_throughput(redis_async_cache) -> None:  # typ
 @perf_enabled
 @pytest.mark.skipif(not HAS_ASYNCIO, reason="pytest-asyncio not installed")
 @pytest.mark.asyncio
-async def test_redis_async_cached_hit_latency_improvement(redis_async_cache) -> None:  # type: ignore[no-redef]
+async def test_redis_async_cached_hit_latency_improvement(redis_async_cache: Any) -> None:
     cache = redis_async_cache
 
     async def slow(x: int) -> int:

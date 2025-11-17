@@ -1,1 +1,1 @@
-
+"""Performance tests package."""

@@ -32,4 +32,3 @@ def test_async_cached_none_passes_through() -> None:
 
     asyncio.run(run())
     assert calls["n"] == 2  # no caching, coroutine executed twice
-

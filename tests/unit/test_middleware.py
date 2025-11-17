@@ -2,7 +2,7 @@ from cachine import InMemoryCache
 from cachine.middleware import MetricsMiddleware
 
 
-def test_metrics_middleware_stats():
+def test_metrics_middleware_stats() -> None:
     cache = MetricsMiddleware(InMemoryCache())
     cache.set("k", "v")
     _ = cache.get("k")

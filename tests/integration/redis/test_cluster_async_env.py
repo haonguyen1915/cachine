@@ -1,5 +1,6 @@
 import os
 import time
+from typing import Any
 
 import pytest
 
@@ -8,10 +9,10 @@ def _truthy(v: str | None) -> bool:
     return (v or "").lower() in {"1", "true", "yes", "on"}
 
 
-def _parse_nodes(env: str | None):
+def _parse_nodes(env: str | None) -> list[dict[str, Any]]:
     if not env:
         return []
-    nodes = []
+    nodes: list[dict[str, Any]] = []
     for part in env.split(","):
         part = part.strip()
         if not part:
@@ -28,7 +29,7 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.mark.asyncio
-async def test_async_redis_cluster_set_get_incr():
+async def test_async_redis_cluster_set_get_incr() -> None:
     try:
         from cachine.backends.redis.async_ import AsyncRedisClusterCache
         from cachine.serializers import JSONSerializer

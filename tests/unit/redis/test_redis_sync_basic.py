@@ -1,7 +1,9 @@
+from typing import Any
+
 from cachine.serializers import JSONSerializer
 
 
-def test_redis_sync_set_get_ttl_persist_delete(redis_sync_cache):
+def test_redis_sync_set_get_ttl_persist_delete(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
     ser = JSONSerializer()
 
@@ -21,7 +23,7 @@ def test_redis_sync_set_get_ttl_persist_delete(redis_sync_cache):
     assert cache.get("user:1") is None
 
 
-def test_redis_sync_incr_and_ttl_on_create(redis_sync_cache):
+def test_redis_sync_incr_and_ttl_on_create(redis_sync_cache: Any) -> None:
     cache = redis_sync_cache
 
     assert cache.incr("cnt") == 1

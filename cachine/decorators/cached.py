@@ -11,7 +11,6 @@ from collections.abc import Callable
 from typing import Any, NamedTuple, Optional
 
 from ..core.types import CacheLike
-
 from ..utils.key_builder import default_key_builder, template_key_builder
 
 _logger = logging.getLogger(__name__)

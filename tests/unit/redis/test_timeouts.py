@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 
@@ -10,7 +12,7 @@ def test_sync_redis_timeouts_plumbed_to_client(monkeypatch: pytest.MonkeyPatch) 
     captured: dict[str, object] = {}
 
     class CaptureClient:
-        def __init__(self, **kwargs) -> None:  # noqa: ANN003 - capture arbitrary kwargs
+        def __init__(self, **kwargs: Any) -> None:
             captured.update(kwargs)
 
         # minimal surface for the call we do below
@@ -37,7 +39,7 @@ def test_sync_redis_timeouts_plumbed_to_client(monkeypatch: pytest.MonkeyPatch) 
 
 
 try:  # pragma: no cover - optional dependency gate
-    import pytest_asyncio as _pytest_asyncio  # type: ignore  # noqa: F401
+    import pytest_asyncio as _pytest_asyncio  # noqa: F401
     HAS_ASYNC = True
 except Exception:  # pragma: no cover
     HAS_ASYNC = False
@@ -52,7 +54,7 @@ async def test_async_redis_timeouts_plumbed_to_client(monkeypatch: pytest.Monkey
     captured: dict[str, object] = {}
 
     class CaptureAsyncClient:
-        def __init__(self, **kwargs) -> None:  # noqa: ANN003
+        def __init__(self, **kwargs: Any) -> None:
             captured.update(kwargs)
 
         async def exists(self, name: str) -> int:  # noqa: ARG002
@@ -75,4 +77,3 @@ async def test_async_redis_timeouts_plumbed_to_client(monkeypatch: pytest.Monkey
     assert captured.get("socket_timeout") == 2.5
     assert captured.get("socket_connect_timeout") == 1.0
     assert captured.get("retry_on_timeout") is True
-

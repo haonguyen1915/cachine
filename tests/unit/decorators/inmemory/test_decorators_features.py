@@ -4,12 +4,12 @@ from threading import Barrier, Thread
 from cachine import InMemoryCache, cached
 
 
-def test_condition_and_cache_none():
+def test_condition_and_cache_none() -> None:
     cache = InMemoryCache()
     calls = {"n": 0}
 
     @cached(cache, ttl=60, condition=lambda r: r is not None, cache_none=False)
-    def maybe_get(flag: bool):
+    def maybe_get(flag: bool) -> int | None:
         calls["n"] += 1
         return 1 if flag else None
 
@@ -22,12 +22,12 @@ def test_condition_and_cache_none():
     assert calls["n"] == 3
 
 
-def test_stale_ttl_background_refresh():
+def test_stale_ttl_background_refresh() -> None:
     cache = InMemoryCache()
     calls = {"n": 0}
 
     @cached(cache, ttl=1, stale_ttl=5, singleflight=True)
-    def expensive():
+    def expensive() -> int:
         calls["n"] += 1
         return calls["n"]
 
@@ -44,12 +44,12 @@ def test_stale_ttl_background_refresh():
     assert expensive() == 2
 
 
-def test_singleflight_concurrent_miss():
+def test_singleflight_concurrent_miss() -> None:
     cache = InMemoryCache()
     calls = {"n": 0}
 
     @cached(cache, ttl=60, singleflight=True)
-    def slow_add(a, b):
+    def slow_add(a: int, b: int) -> int:
         calls["n"] += 1
         time.sleep(0.05)
         return a + b
@@ -57,7 +57,7 @@ def test_singleflight_concurrent_miss():
     barrier = Barrier(3)
     results = {}
 
-    def worker(i):
+    def worker(i: int) -> None:
         barrier.wait()
         results[i] = slow_add(1, 2)
 
@@ -73,11 +73,11 @@ def test_singleflight_concurrent_miss():
     assert calls["n"] == 1
 
 
-def test_tags_and_invalidation():
+def test_tags_and_invalidation() -> None:
     cache = InMemoryCache()
 
     @cached(cache, ttl=60, tags=["users"], tags_from_result=lambda u: [f"user:{u['id']}"])
-    def get_user(uid: int):
+    def get_user(uid: int) -> dict[str, int]:
         return {"id": uid}
 
     u = get_user(10)

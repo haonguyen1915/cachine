@@ -2,7 +2,7 @@ from cachine import InMemoryCache
 from cachine.strategies import LFUEviction, LRUEviction
 
 
-def test_lru_eviction_basic():
+def test_lru_eviction_basic() -> None:
     cache = InMemoryCache(max_size=2, eviction_policy=LRUEviction())
     cache.set("a", 1)
     cache.set("b", 2)
@@ -14,7 +14,7 @@ def test_lru_eviction_basic():
     assert cache.get("c") == 3
 
 
-def test_lfu_eviction_basic():
+def test_lfu_eviction_basic() -> None:
     cache = InMemoryCache(max_size=2, eviction_policy=LFUEviction())
     cache.set("a", 1)
     cache.set("b", 2)
@@ -27,7 +27,7 @@ def test_lfu_eviction_basic():
     assert cache.get("c") == 3
 
 
-def test_lfu_tie_break_on_recency():
+def test_lfu_tie_break_on_recency() -> None:
     cache = InMemoryCache(max_size=2, eviction_policy=LFUEviction())
     cache.set("x", 1)  # freq 1
     cache.set("y", 2)  # freq 1

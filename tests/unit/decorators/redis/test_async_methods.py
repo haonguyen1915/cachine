@@ -1,10 +1,12 @@
+from typing import Any
+
 import pytest
 
 from cachine import cached
 
 
 @pytest.mark.asyncio
-async def test_async_instance_method_caching(redis_async_cache):
+async def test_async_instance_method_caching(redis_async_cache: Any) -> None:
     cache = redis_async_cache
 
     class Service:
@@ -24,7 +26,7 @@ async def test_async_instance_method_caching(redis_async_cache):
 
 
 @pytest.mark.asyncio
-async def test_async_staticmethod_caching(redis_async_cache):
+async def test_async_staticmethod_caching(redis_async_cache: Any) -> None:
     cache = redis_async_cache
 
     class Util:
@@ -42,7 +44,7 @@ async def test_async_staticmethod_caching(redis_async_cache):
 
 
 @pytest.mark.asyncio
-async def test_async_classmethod_caching(redis_async_cache):
+async def test_async_classmethod_caching(redis_async_cache: Any) -> None:
     cache = redis_async_cache
 
     class Counter:

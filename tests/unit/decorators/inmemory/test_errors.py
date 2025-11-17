@@ -5,7 +5,7 @@ import pytest
 from cachine import InMemoryCache, cached
 
 
-def test_exception_not_cached_and_propagates_inmemory():
+def test_exception_not_cached_and_propagates_inmemory() -> None:
     cache = InMemoryCache()
     state = {"fail": True, "calls": 0}
 
@@ -29,7 +29,7 @@ def test_exception_not_cached_and_propagates_inmemory():
     assert state["calls"] == 2
 
 
-def test_stale_ttl_refresh_error_inmemory():
+def test_stale_ttl_refresh_error_inmemory() -> None:
     cache = InMemoryCache()
     state = {"fail": False, "n": 0}
 

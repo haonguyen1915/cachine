@@ -4,14 +4,14 @@ from cachine import InMemoryCache
 from cachine.strategies import TagBasedInvalidation
 
 
-def test_get_default_and_exists():
+def test_get_default_and_exists() -> None:
     cache = InMemoryCache()
     assert cache.get("missing") is None
     assert cache.get("missing", default=123) == 123
     assert cache.exists("missing") is False
 
 
-def test_set_get_delete_clear_namespace():
+def test_set_get_delete_clear_namespace() -> None:
     cache = InMemoryCache(namespace="ns")
     cache.set("a", 1)
     assert cache.get("a") == 1
@@ -23,7 +23,7 @@ def test_set_get_delete_clear_namespace():
     assert cache.get("b") is None
 
 
-def test_ttl_expire_persist_touch():
+def test_ttl_expire_persist_touch() -> None:
     cache = InMemoryCache()
     cache.set("k", "v", ttl=10)
     t = cache.ttl("k")
@@ -49,11 +49,11 @@ def test_ttl_expire_persist_touch():
     assert isinstance(cache.ttl("z"), int)
 
 
-def test_get_or_set():
+def test_get_or_set() -> None:
     cache = InMemoryCache()
     called = {"n": 0}
 
-    def factory():
+    def factory() -> int:
         called["n"] += 1
         return 42
 
@@ -62,7 +62,7 @@ def test_get_or_set():
     assert called["n"] == 1
 
 
-def test_counters_incr_decr_and_ttl_on_create():
+def test_counters_incr_decr_and_ttl_on_create() -> None:
     cache = InMemoryCache()
     assert cache.incr("cnt") == 1
     assert cache.incr("cnt", delta=5) == 6
@@ -79,11 +79,11 @@ def test_counters_incr_decr_and_ttl_on_create():
     assert before == after
 
 
-def test_tags_invalidation_direct_and_strategy():
+def test_tags_invalidation_direct_and_strategy() -> None:
     cache = InMemoryCache()
     cache.set("user:1", {"id": 1})
     # Attach tags via internal method (used by decorator/strategy)
-    cache.add_tags("user:1", ["users", "user:1"])  # type: ignore[attr-defined]
+    cache.add_tags("user:1", ["users", "user:1"])
     assert cache.invalidate_tags(["users"]) == 1
     assert cache.get("user:1") is None
 
@@ -93,14 +93,14 @@ def test_tags_invalidation_direct_and_strategy():
     import asyncio
 
     asyncio.get_event_loop().run_until_complete(
-        inv.set("user:2", {"id": 2}, ttl=60, tags=["users", "user:2"])  # type: ignore[arg-type]
+        inv.set("user:2", {"id": 2}, ttl=60, tags=["users", "user:2"])
     )
     assert cache.get("user:2") == {"id": 2}
     asyncio.get_event_loop().run_until_complete(inv.invalidate_tag("users"))
     assert cache.get("user:2") is None
 
 
-def test_context_manager_and_ping():
+def test_context_manager_and_ping() -> None:
     with InMemoryCache() as cache:
         cache.set("k", "v")
         assert cache.get("k") == "v"

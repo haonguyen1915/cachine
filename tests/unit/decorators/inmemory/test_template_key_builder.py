@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+from typing import Any
+
 from cachine import InMemoryCache, cached
 from cachine.utils.key_builder import template_key_builder
 
 
-def test_template_key_builder_positional_and_ctx():
+def test_template_key_builder_positional_and_ctx() -> None:
     cache = InMemoryCache()
     kb = template_key_builder("{ctx.full_name}:{0}:{1}")
     recorded: list[str] = []
 
-    def rkb(ctx, *args, **kwargs):  # type: ignore[no-untyped-def]
+    def rkb(ctx: Any, *args: Any, **kwargs: Any) -> str:
         s = kb(ctx, *args, **kwargs)
         recorded.append(s)
         return s
@@ -25,18 +27,18 @@ def test_template_key_builder_positional_and_ctx():
     assert cache.get(expected_key) == 5 or cache.get(expected_key).get("v") == 5  # handle SWR envelope if present later
 
 
-def test_template_key_builder_kwargs_only():
+def test_template_key_builder_kwargs_only() -> None:
     cache = InMemoryCache()
     kb = template_key_builder("{ctx.full_name}:uid={uid}")
     recorded: list[str] = []
 
-    def rkb(ctx, *args, **kwargs):  # type: ignore[no-untyped-def]
+    def rkb(ctx: Any, *args: Any, **kwargs: Any) -> str:
         s = kb(ctx, *args, **kwargs)
         recorded.append(s)
         return s
 
     @cached(cache=cache, ttl=60, key_builder=rkb)
-    def fetch_user(*, uid: int) -> dict:
+    def fetch_user(*, uid: int) -> dict[str, int]:
         return {"id": uid}
 
     out = fetch_user(uid=7)
@@ -45,12 +47,12 @@ def test_template_key_builder_kwargs_only():
     assert cache.exists(expected_key)
 
 
-def test_template_key_builder_instance_method_with_attr():
+def test_template_key_builder_instance_method_with_attr() -> None:
     cache = InMemoryCache()
     kb = template_key_builder("{ctx.full_name}:{0.tenant}:{1}")
     recorded: list[str] = []
 
-    def rkb(ctx, *args, **kwargs):  # type: ignore[no-untyped-def]
+    def rkb(ctx: Any, *args: Any, **kwargs: Any) -> str:
         s = kb(ctx, *args, **kwargs)
         recorded.append(s)
         return s

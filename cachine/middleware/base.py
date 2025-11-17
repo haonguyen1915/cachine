@@ -1,5 +1,7 @@
 from typing import Any
 
+from ..core.types import CacheLike
+
 
 class BaseMiddleware:
     """Base middleware that forwards attribute access to the wrapped cache.
@@ -8,7 +10,7 @@ class BaseMiddleware:
         cache (Any): Wrapped cache instance.
     """
 
-    def __init__(self, cache: Any) -> None:
+    def __init__(self, cache: CacheLike) -> None:
         self._cache = cache
 
     def __getattr__(self, item: str) -> Any:  # delegate to underlying cache

@@ -1,1 +1,1 @@
-
+"""Decorator tests package."""

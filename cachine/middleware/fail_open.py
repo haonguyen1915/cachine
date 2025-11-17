@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
+from ..core.types import AsyncCache
+from ..core.types import Cache as SyncCache
 from .base import BaseMiddleware
 
 
@@ -20,7 +22,7 @@ class FailOpenMiddleware(BaseMiddleware):
           fallback so code relying on counters can continue operating.
     """
 
-    def __init__(self, cache: Any) -> None:
+    def __init__(self, cache: SyncCache) -> None:
         super().__init__(cache)
         self._local_counters: dict[str, int] = {}
 
@@ -137,7 +139,7 @@ class AsyncFailOpenMiddleware(BaseMiddleware):
     Mirrors ``FailOpenMiddleware`` but with async methods.
     """
 
-    def __init__(self, cache: Any) -> None:
+    def __init__(self, cache: AsyncCache) -> None:
         super().__init__(cache)
         self._local_counters: dict[str, int] = {}
 
@@ -245,4 +247,3 @@ class AsyncFailOpenMiddleware(BaseMiddleware):
             return bool(await self._cache.ping_ok())
         except Exception:
             return False
-

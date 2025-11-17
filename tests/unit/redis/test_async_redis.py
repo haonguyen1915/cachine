@@ -1,8 +1,10 @@
+from typing import Any
+
 import pytest
 
 
 @pytest.mark.asyncio
-async def test_async_redis_set_get_incr_ttl(redis_async_cache):
+async def test_async_redis_set_get_incr_ttl(redis_async_cache: Any) -> None:
     cache = redis_async_cache
 
     # set/get
@@ -31,12 +33,12 @@ async def test_async_redis_set_get_incr_ttl(redis_async_cache):
 
 
 @pytest.mark.asyncio
-async def test_async_redis_tags_invalidation(redis_async_cache):
+async def test_async_redis_tags_invalidation(redis_async_cache: Any) -> None:
     cache = redis_async_cache
 
     await cache.set("user:1", {"id": 1, "role": "admin"}, ttl=60)
     # attach tags and invalidate
-    await cache.add_tags("user:1", ["users", "user:1", "role:admin"])  # type: ignore[attr-defined]
-    removed = await cache.invalidate_tags(["users"])  # type: ignore[attr-defined]
+    await cache.add_tags("user:1", ["users", "user:1", "role:admin"])
+    removed = await cache.invalidate_tags(["users"])
     assert removed >= 1
     assert await cache.get("user:1") is None

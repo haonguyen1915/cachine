@@ -3,7 +3,7 @@ from __future__ import annotations
 from cachine import InMemoryCache, cached
 
 
-def test_key_builder_accepts_string_template_for_positional():
+def test_key_builder_accepts_string_template_for_positional() -> None:
     cache = InMemoryCache()
     calls = {"n": 0}
 
@@ -18,12 +18,12 @@ def test_key_builder_accepts_string_template_for_positional():
     assert calls["n"] == 1
 
 
-def test_key_builder_accepts_string_template_for_kwargs():
+def test_key_builder_accepts_string_template_for_kwargs() -> None:
     cache = InMemoryCache()
     calls = {"n": 0}
 
     @cached(cache=cache, ttl=60, key_builder="{ctx.full_name}:uid={uid}")
-    def fetch_user(*, uid: int) -> dict:
+    def fetch_user(*, uid: int) -> dict[str, int]:
         calls["n"] += 1
         return {"id": uid}
 
@@ -32,12 +32,12 @@ def test_key_builder_accepts_string_template_for_kwargs():
     assert calls["n"] == 1
 
 
-def test_key_builder_template_kwargs_name_from_positional():
+def test_key_builder_template_kwargs_name_from_positional() -> None:
     cache = InMemoryCache()
     calls = {"n": 0}
 
     @cached(cache=cache, ttl=60, key_builder="{ctx.full_name}:uid={uid}")
-    def fetch_user(uid: int) -> dict:
+    def fetch_user(uid: int) -> dict[str, int]:
         calls["n"] += 1
         return {"id": uid}
 
@@ -48,12 +48,12 @@ def test_key_builder_template_kwargs_name_from_positional():
     assert calls["n"] == 1
 
 
-def test_key_builder_template_kwonly_called_positionally_ok():
+def test_key_builder_template_kwonly_called_positionally_ok() -> None:
     cache = InMemoryCache()
     calls = {"n": 0}
 
     @cached(cache=cache, ttl=60, key_builder="uid={0}")
-    def fetch_user(uid: int, a: int) -> dict:
+    def fetch_user(uid: int, a: int) -> dict[str, int]:
         calls["n"] += 1
         return {"id": uid, "a": a}
 
