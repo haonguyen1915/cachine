@@ -99,6 +99,10 @@ class SyncCacheMiddleware(BaseMiddleware):
     def close(self) -> None:
         return self._cache.close()
 
+    # Stats / observability
+    def get_stats(self) -> Optional[dict[str, Any]]:
+        return self._cache.get_stats()
+
     # Context manager
     def __enter__(self) -> Cache:
         return self._cache.__enter__()
@@ -190,6 +194,10 @@ class AsyncCacheMiddleware(BaseMiddleware):
 
     async def close(self) -> None:
         return await self._cache.close()
+
+    # Stats / observability
+    def get_stats(self) -> Optional[dict[str, Any]]:
+        return self._cache.get_stats()
 
     # Async context manager
     async def __aenter__(self) -> AsyncCache:

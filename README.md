@@ -646,6 +646,48 @@ value = cache.get("sensitive_data", serializer=JSONSerializer())
 print(cache.get_stats())  # See metrics
 ```
 
+### 🧱 Build Caches Fluently (Builder)
+
+Compose middleware layers clearly and lazily:
+
+Sync:
+```python
+from cachine import CacheBuilder
+from cachine.middleware import MetricsMiddleware
+
+cache = (
+    CacheBuilder.from_url("redis://localhost:6379/0", namespace="myapp")
+    .add_middleware(MetricsMiddleware)  # first added = inner; last = outer
+    .build()
+)
+```
+
+Async:
+```python
+from cachine import AsyncCacheBuilder
+from cachine.middleware import AsyncMetricsMiddleware, MetricsMiddleware
+
+# You can add async middleware directly, or add a known sync middleware
+# and the builder will map it to its async counterpart where available.
+acache = (
+    AsyncCacheBuilder.from_url("redis://localhost:6379/0", namespace="myapp")
+    .add_middleware(MetricsMiddleware)        # mapped to AsyncMetricsMiddleware
+    # .add_middleware(AsyncMetricsMiddleware) # explicit async class also works
+    .build()
+)
+```
+
+Use with the decorator lazily without early initialization:
+```python
+from cachine.decorators import cached
+
+builder = CacheBuilder.from_url("redis://localhost:6379/0")
+
+@cached(cache=builder.as_factory(), ttl=60)
+def compute(x):
+    return x * 2
+```
+
 ---
 
 ## Serializers

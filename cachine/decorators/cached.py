@@ -8,10 +8,15 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
-from typing import Any, NamedTuple, Optional, cast
+from typing import Any, NamedTuple, Optional, Union, cast
 
-from ..core.types import CacheLike
+from ..core.types import AsyncCache, Cache, CacheLike
 from ..utils.key_builder import default_key_builder, template_key_builder
+
+# Type aliases for cache factories
+CacheFactory = Callable[[], Cache]
+AsyncCacheFactory = Callable[[], AsyncCache]
+AnyCacheFactory = Union[CacheFactory, AsyncCacheFactory, Callable[[], CacheLike]]
 
 _logger = logging.getLogger(__name__)
 

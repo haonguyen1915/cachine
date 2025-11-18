@@ -439,6 +439,15 @@ class RedisCache:
         """Close the underlying client if applicable."""
         return None
 
+    def get_stats(self) -> Optional[dict[str, Any]]:
+        """Get cache statistics.
+
+        Returns:
+            Optional[dict[str, Any]]: None for base cache (no stats collected).
+                Middleware may override to return collected metrics.
+        """
+        return None
+
     # Context manager
     def __enter__(self) -> RedisCache:
         """Enter context manager.

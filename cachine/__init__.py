@@ -17,6 +17,7 @@ from .core.types import Cache as CacheType
 from .core.types import CacheLike
 from .factory import async_cache_from_url, cache_from_url
 from .utils.logging_utils import logger_setup
+from .builder import AsyncCacheBuilder, CacheBuilder
 
 __all__ = [
     "InMemoryCache",
@@ -28,4 +29,6 @@ __all__ = [
     "cache_from_url",
     "async_cache_from_url",
     "logger_setup",
+    "CacheBuilder",
+    "AsyncCacheBuilder",
 ]

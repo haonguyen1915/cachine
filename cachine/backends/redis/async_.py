@@ -516,6 +516,15 @@ class AsyncRedisCache:
         except Exception:
             pass
 
+    def get_stats(self) -> Optional[dict[str, Any]]:
+        """Get cache statistics.
+
+        Returns:
+            Optional[dict[str, Any]]: None for base cache (no stats collected).
+                Middleware may override to return collected metrics.
+        """
+        return None
+
     # Async context manager
     async def __aenter__(self) -> AsyncRedisCache:
         """Enter async context manager.
