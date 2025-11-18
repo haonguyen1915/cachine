@@ -3,6 +3,7 @@ from typing import Any
 from cachine import RedisCache
 from cachine.decorators import cached
 
+
 def test_key_builder_receives_context_redis(redis_cache: RedisCache) -> None:
     cache = redis_cache
     captured = {}

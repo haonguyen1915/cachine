@@ -5,7 +5,7 @@ import inspect
 import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from cachine.core.types import HealthStatus
 from cachine.models.redis_config import RedisClusterConfig, RedisConfig, RedisSentinelConfig, RedisSingleConfig
@@ -541,8 +541,8 @@ class AsyncRedisCache:
         """
         try:
             from redis.asyncio import Redis
-        except ImportError:
-            raise RuntimeError("redis.asyncio.Redis not available; install with: `pip install redis`")
+        except ImportError as e:
+            raise RuntimeError("redis.asyncio.Redis not available; install with: `pip install redis`") from e
         kwargs: dict[str, Any] = {
             "host": config.host,
             "port": int(config.port),
@@ -589,12 +589,32 @@ class AsyncRedisCache:
         nodes = [{"host": node.host, "port": node.port} for node in config.nodes]
 
         # Try different redis-py API versions
-        client = RedisCluster(
-            startup_nodes=[ClusterNode(node["host"], node["port"]) for node in nodes],
-            username=config.username,
-            password=config.password, ssl=config.ssl,
+        # Help type checker: ensure proper types for ClusterNode
+        cluster_nodes = [ClusterNode(cast(str, n["host"]), int(cast(Any, n.get("port", 6379)))) for n in nodes]
+        kwargs: dict[str, Any] = {
+            "username": config.username,
+            "password": config.password,
+            "ssl": config.ssl,
+        }
+        if getattr(config, "decode_responses", False):
+            kwargs["decode_responses"] = True
+        if getattr(config, "socket_timeout", None) is not None:
+            kwargs["socket_timeout"] = float(config.socket_timeout)  # type: ignore[arg-type]
+        if getattr(config, "socket_connect_timeout", None) is not None:
+            kwargs["socket_connect_timeout"] = float(config.socket_connect_timeout)  # type: ignore[arg-type]
+        if getattr(config, "retry_on_timeout", False):
+            kwargs["retry_on_timeout"] = True
+        try:  # pragma: no cover
+            import redis as _redis
+            ver = getattr(_redis, "__version__", "")
+            head = ver.split(".", maxsplit=1)[0] if ver else ""
+            major = int(head) if head.isdigit() else None
+            if major is not None and major >= 6:
+                kwargs.pop("retry_on_timeout", None)
+        except Exception:
+            pass
 
-        )
+        client = RedisCluster(startup_nodes=cluster_nodes, **kwargs)
         return client
 
     @staticmethod
@@ -615,7 +635,8 @@ class AsyncRedisCache:
         except Exception as e:  # pragma: no cover
             raise RuntimeError("redis.asyncio not available; install with: `pip install redis`") from e
 
-        sentinel = Sentinel(list(config.sentinels), socket_timeout=2, ssl=config.ssl)
+        st = 2 if config.socket_timeout is None else float(config.socket_timeout)
+        sentinel = Sentinel(list(config.sentinels), socket_timeout=st, ssl=config.ssl)
         return sentinel.master_for(
             config.service_name,
             db=config.db,

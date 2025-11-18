@@ -513,7 +513,7 @@ class RedisCache:
             RuntimeError: If redis cluster client is not available.
         """
         try:
-            from redis import Redis, RedisCluster
+            from redis import RedisCluster
             from redis.cluster import ClusterNode
         except Exception as e:
             raise RuntimeError("redis cluster client not available; install redis>=4 with cluster support") from e
@@ -524,7 +524,34 @@ class RedisCache:
         # Try different redis-py API versions
 
         cluster_nodes = [ClusterNode(n["host"], n["port"]) for n in nodes]
-        return RedisCluster(startup_nodes=cluster_nodes, username=config.username, password=config.password, ssl=config.ssl)
+        kwargs: dict[str, Any] = {
+            "username": config.username,
+            "password": config.password,
+            "ssl": config.ssl,
+        }
+        # Optional timeouts/flags
+        if getattr(config, "decode_responses", False):
+            kwargs["decode_responses"] = True
+        if getattr(config, "socket_timeout", None) is not None:
+            kwargs["socket_timeout"] = float(config.socket_timeout)  # type: ignore[arg-type]
+        if getattr(config, "socket_connect_timeout", None) is not None:
+            kwargs["socket_connect_timeout"] = float(config.socket_connect_timeout)  # type: ignore[arg-type]
+        if getattr(config, "retry_on_timeout", False):
+            kwargs["retry_on_timeout"] = True
+
+        # Avoid deprecated retry_on_timeout on redis>=6
+        try:  # pragma: no cover
+            import redis as _redis
+
+            ver = getattr(_redis, "__version__", "")
+            head = ver.split(".", maxsplit=1)[0] if ver else ""
+            major = int(head) if head.isdigit() else None
+            if major is not None and major >= 6:
+                kwargs.pop("retry_on_timeout", None)
+        except Exception:
+            pass
+
+        return RedisCluster(startup_nodes=cluster_nodes, **kwargs)
 
     @staticmethod
     def _create_sentinel_client(config: RedisSentinelConfig) -> Any:
@@ -544,7 +571,9 @@ class RedisCache:
         except Exception as e:
             raise RuntimeError("redis.sentinel is not available; install redis>=4") from e
 
-        sentinel = Sentinel(list(config.sentinels), socket_timeout=2, ssl=config.ssl)
+        # Use configured socket_timeout when provided
+        st = 2 if config.socket_timeout is None else float(config.socket_timeout)
+        sentinel = Sentinel(list(config.sentinels), socket_timeout=st, ssl=config.ssl)
         return cast(Any, sentinel.master_for(
             config.service_name,
             db=config.db,

@@ -4,8 +4,8 @@ from datetime import datetime, timedelta, timezone
 from threading import RLock
 from typing import Any, Optional
 
-from ...core.types import HealthStatus
-from ...strategies.eviction import LRUEviction
+from cachine.core.types import HealthStatus
+from cachine.strategies.eviction import LRUEviction
 
 _MISSING = object()
 
