@@ -530,6 +530,21 @@ print(stats)
 # }
 ```
 
+Async usage:
+```python
+from cachine import async_cache_from_url
+from cachine.middleware import AsyncMetricsMiddleware
+
+base = async_cache_from_url("redis://localhost:6379/0")
+cache = AsyncMetricsMiddleware(base)
+
+async def main():
+    await cache.set("k", "v")
+    await cache.get("k")
+    await cache.get("missing", default=None)
+    print(cache.get_stats())
+```
+
 ### 🗜️ Compress Large Values
 
 ```python
