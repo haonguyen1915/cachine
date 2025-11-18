@@ -221,6 +221,7 @@ def cached(
     jitter: Optional[int] = None,
     key_builder: Optional[Any] = None,
     condition: Optional[Callable[[Any], bool]] = None,
+    enabled: Optional[bool | Callable[[KeyContext, tuple[Any, ...], dict[str, Any]], bool]] = True,
     version: Optional[str] = None,
     cache_none: bool = False,
     stale_ttl: Optional[int] = None,
@@ -403,10 +404,29 @@ def cached(
             finally:
                 _sf.release(key)
 
+        def _call_enabled_predicate(args: tuple[Any, ...], kwargs: dict[str, Any]) -> bool:
+            # Evaluate the enabled predicate (if callable) using KeyContext and the call args
+            en = enabled
+            if en is None:
+                return True
+            if isinstance(en, bool):
+                return en
+            try:
+                module = fn.__module__
+                qualname = fn.__qualname__ if hasattr(fn, "__qualname__") else fn.__name__
+                ctx = KeyContext(module=module, qualname=qualname, full_name=f"{module}.{qualname}", version=version)
+                return bool(en(ctx, args, kwargs))
+            except Exception:
+                # On any error evaluating predicate, default to enabled
+                return True
+
         if is_coro:
 
             @functools.wraps(fn)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:  # pylint: disable=too-many-branches
+                # Early predicate: optionally bypass cache entirely
+                if not _call_enabled_predicate(args, kwargs):
+                    return await fn(*args, **kwargs)
                 key = _build_key(fn, key_builder, version, args, kwargs)
                 hit, value, fresh_until = await _aget_cached_entry(key)
                 now = time.time()
@@ -533,6 +553,8 @@ def cached(
 
         @functools.wraps(fn)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+            if not _call_enabled_predicate(args, kwargs):
+                return fn(*args, **kwargs)
             key = _build_key(fn, key_builder, version, args, kwargs)
             hit, value, fresh_until = _get_cached_entry(key)
             now = time.time()

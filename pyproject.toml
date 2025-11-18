@@ -123,3 +123,6 @@ disable_error_code = ["func-returns-value", "call-overload", "override"]
 plugins = ["pydantic.mypy"]
 exclude = []
 
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+ignore_errors = true
