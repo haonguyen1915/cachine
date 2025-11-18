@@ -16,3 +16,6 @@ class DeserializationError(CacheError):
 
 class EvictionError(CacheError):
     """Raised for eviction-related errors in in-memory cache backends."""
+
+class RedisURLParseError(CacheError):
+    """Raised when a Redis URL cannot be parsed."""

@@ -1,91 +1,152 @@
+"""Cache factory functions for creating cache instances."""
+
 from __future__ import annotations
 
-import os
-from typing import Any, Literal
+from typing import Any
 
-from .backends.inmemory.cache import InMemoryCache
-from .backends.redis.async_ import AsyncRedisCache
-from .backends.redis.sync import RedisCache
-from .core.types import CacheLike
+from .core.types import AsyncCache, Cache
+from .exceptions import RedisURLParseError
 
 
-def _parse_float(v: str | None) -> float | None:
-    try:
-        return float(v) if v is not None and v != "" else None
-    except Exception:
-        return None
+def cache_from_url(url: str, **kwargs: Any) -> Cache:
+    """Create a synchronous cache instance from a URL.
+
+    Supported URL schemes:
+        - redis:// or rediss:// - Single Redis instance
+        - redis://host1:port1,host2:port2 - Redis Cluster
+        - redis+sentinel:// or rediss+sentinel:// - Redis Sentinel
+
+    Args:
+        url: Connection URL string
+        **kwargs: Additional arguments passed to cache constructor:
+            - namespace: Cache key namespace
+            - serializer: Custom serializer instance
+            - For Redis: pubsub_channel, auto_publish_invalidations, etc.
+
+    Returns:
+        Synchronous Cache instance
+
+    Raises:
+        RedisURLParseError: If URL scheme is not supported or URL is invalid
+
+    Examples:
+        >>> # Single Redis instance
+        >>> cache = cache_from_url("redis://localhost:6379/0", namespace="myapp")
+
+        >>> # Redis with SSL and timeout
+        >>> cache = cache_from_url(
+        ...     "rediss://localhost:6379/0?socket_timeout=5&retry_on_timeout=true",
+        ...     namespace="myapp"
+        ... )
+
+        >>> # Redis Cluster
+        >>> cache = cache_from_url(
+        ...     "redis://node1:7000,node2:7001,node3:7002",
+        ...     namespace="myapp"
+        ... )
+
+        >>> # Redis Sentinel
+        >>> cache = cache_from_url(
+        ...     "redis+sentinel://mymaster/0?sentinels=sentinel1:26379,sentinel2:26379",
+        ...     namespace="myapp"
+        ... )
+    """
+    if not url:
+        raise RedisURLParseError("URL cannot be empty")
+
+    # Extract scheme
+    scheme = url.split("://")[0].lower()
+
+    # Route to appropriate backend
+    if scheme in ("redis", "rediss", "redis+sentinel", "rediss+sentinel"):
+        from .utils.redis_url import parse_redis_url
+
+        config = parse_redis_url(url)
+
+        # Extract cache constructor args
+        namespace = kwargs.pop("namespace", None)
+        serializer = kwargs.pop("serializer", None)
+
+        # Warn about unknown kwargs
+        if kwargs:
+            import warnings
+
+            warnings.warn(f"Unknown arguments ignored: {list(kwargs.keys())}", stacklevel=2)
+
+        from .backends.redis.sync import RedisCache
+
+        return RedisCache(config, namespace=namespace, serializer=serializer)
+    else:
+        raise RedisURLParseError(
+            f"Unsupported cache URL scheme: {scheme}. "
+            f"Supported schemes: redis://, rediss://, redis+sentinel://, rediss+sentinel://"
+        )
 
 
-class _CacheFactory:
-    """Factory for constructing caches from dict or environment configuration."""
+def async_cache_from_url(url: str, **kwargs: Any) -> AsyncCache:
+    """Create an asynchronous cache instance from a URL.
 
-    def __call__(self, config: dict[str, Any], mode: Literal["async", "sync"] = "async") -> CacheLike:
-        """Create a cache from a configuration mapping.
+    Supported URL schemes:
+        - redis:// or rediss:// - Single Redis instance
+        - redis://host1:port1,host2:port2 - Redis Cluster
+        - redis+sentinel:// or rediss+sentinel:// - Redis Sentinel
 
-        Args:
-            config (dict[str, Any]): Configuration mapping. Supported keys for Redis
-                include ``host``, ``port``, ``db``, ``password``, ``ssl``, ``namespace``.
-            mode (Literal["async", "sync"]): Redis mode to use. In-memory is always sync.
+    Args:
+        url: Connection URL string
+        **kwargs: Additional arguments passed to cache constructor:
+            - namespace: Cache key namespace
+            - serializer: Custom serializer instance
+            - For Redis: pubsub_channel, auto_publish_invalidations, etc.
 
-        Returns:
-            CacheLike: Cache instance.
-        """
-        backend = (config.get("backend") or "inmemory").lower()
-        if backend == "inmemory":
-            return InMemoryCache(
-                max_size=config.get("max_size"),
-                eviction_policy=config.get("eviction_policy"),
-                namespace=config.get("namespace"),
-            )
-        if backend == "redis":
-            common = {
-                "host": config.get("host", "localhost"),
-                "port": config.get("port", 6379),
-                "db": config.get("db", 0),
-                "password": config.get("password"),
-                "ssl": config.get("ssl", False),
-                "namespace": config.get("namespace"),
-                "socket_timeout": config.get("socket_timeout"),
-                "socket_connect_timeout": config.get("socket_connect_timeout"),
-                "retry_on_timeout": config.get("retry_on_timeout", False),
-            }
-            if mode == "async":
-                return AsyncRedisCache(**common)
-            return RedisCache(**common)
-        raise ValueError(f"Unknown backend: {backend}")
+    Returns:
+        Asynchronous AsyncCache instance
 
-    def from_env(self, mode: Literal["async", "sync"] = "sync") -> CacheLike:
-        """Create a cache from environment variables.
+    Raises:
+        RedisURLParseError: If URL scheme is not supported or URL is invalid
 
-        Reads variables prefixed with ``CACHE_`` such as ``CACHE_BACKEND``, ``CACHE_HOST``.
+    Examples:
+        >>> # Single Redis instance (async)
+        >>> cache = async_cache_from_url("redis://localhost:6379/0", namespace="myapp")
 
-        Args:
-            mode (Literal["async", "sync"]): Redis mode to use when backend is "redis".
+        >>> # Redis Cluster (async)
+        >>> cache = async_cache_from_url(
+        ...     "redis://node1:7000,node2:7001,node3:7002",
+        ...     namespace="myapp"
+        ... )
+    """
+    if not url:
+        raise RedisURLParseError("URL cannot be empty")
 
-        Returns:
-            CacheLike: Cache instance.
-        """
-        backend = os.getenv("CACHE_BACKEND", "inmemory").lower()
-        if backend == "inmemory":
-            return InMemoryCache(namespace=os.getenv("CACHE_NAMESPACE"))
-        if backend == "redis":
-            cfg = {
-                "host": os.getenv("CACHE_HOST", "localhost"),
-                "port": int(os.getenv("CACHE_PORT", "6379")),
-                "db": int(os.getenv("CACHE_DB", "0")),
-                "password": os.getenv("CACHE_PASSWORD") or None,
-                "ssl": os.getenv("CACHE_SSL", "false").lower() in {"1", "true", "yes"},
-                "namespace": os.getenv("CACHE_NAMESPACE"),
-                "socket_timeout": _parse_float(os.getenv("CACHE_SOCKET_TIMEOUT")),
-                "socket_connect_timeout": _parse_float(os.getenv("CACHE_SOCKET_CONNECT_TIMEOUT")),
-                "retry_on_timeout": os.getenv("CACHE_RETRY_ON_TIMEOUT", "false").lower() in {"1", "true", "yes"},
-            }
-            if mode == "async":
-                return AsyncRedisCache(**cfg)  # type: ignore[arg-type]
-            return RedisCache(**cfg)  # type: ignore[arg-type]
-        raise ValueError(f"Unknown backend from env: {backend}")
+    # Extract scheme
+    scheme = url.split("://")[0].lower()
+
+    # Route to appropriate backend
+    if scheme in ("redis", "rediss", "redis+sentinel", "rediss+sentinel"):
+        from .utils.redis_url import parse_redis_url
+
+        config = parse_redis_url(url)
+
+        # Extract cache constructor args
+        namespace = kwargs.pop("namespace", None)
+        serializer = kwargs.pop("serializer", None)
+
+        # Warn about unknown kwargs
+        if kwargs:
+            import warnings
+
+            warnings.warn(f"Unknown arguments ignored: {list(kwargs.keys())}", stacklevel=2)
+
+        from .backends.redis.async_ import AsyncRedisCache
+
+        return AsyncRedisCache(config, namespace=namespace, serializer=serializer)
+    else:
+        raise RedisURLParseError(
+            f"Unsupported cache URL scheme: {scheme}. "
+            f"Supported schemes: redis://, rediss://, redis+sentinel://, rediss+sentinel://"
+        )
 
 
-create_cache = _CacheFactory()
-
-__all__ = ["create_cache"]
+__all__ = [
+    "cache_from_url",
+    "async_cache_from_url",
+]

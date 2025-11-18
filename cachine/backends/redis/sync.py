@@ -490,8 +490,6 @@ class RedisCache:
             kwargs["socket_timeout"] = float(config.socket_timeout)
         if config.socket_connect_timeout is not None:
             kwargs["socket_connect_timeout"] = float(config.socket_connect_timeout)
-        if config.retry_on_timeout:
-            kwargs["retry_on_timeout"] = True
 
         # Allow passing through any additional supported parameters
         for k, v in config.extra.items():

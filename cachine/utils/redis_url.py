@@ -32,6 +32,7 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from ..exceptions import RedisURLParseError
 from ..models.redis_config import (
     RedisClusterConfig,
     RedisConfig,
@@ -39,10 +40,6 @@ from ..models.redis_config import (
     RedisSentinelConfig,
     RedisSingleConfig,
 )
-
-
-class RedisURLParseError(ValueError):
-    """Raised when a Redis URL cannot be parsed."""
 
 
 def parse_redis_url(url: str) -> RedisConfig:
