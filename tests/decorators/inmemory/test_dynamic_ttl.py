@@ -70,7 +70,8 @@ class TestDynamicTTL:
         calls = {"n": 0}
 
         # Premium users get longer TTL
-        @cached(cache=cache, ttl=lambda user_id, premium=False: 3600 if premium else 60)
+        # @cached(cache=cache, ttl=lambda user_id, premium=False: 3600 if premium else 60)
+        @cached(cache=cache, ttl=lambda *args, **kwargs: 3600 if kwargs.get("premium", False) else 60)
         def get_user(user_id: int, premium: bool = False) -> dict:
             calls["n"] += 1
             return {"id": user_id, "premium": premium}

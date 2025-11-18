@@ -220,9 +220,9 @@ def _compute_ttls(
 
 
 def cached(
-    cache: CacheLike | None,
-    ttl: Optional[Callable[..., int | float] | int | float] = None,
+    cache: CacheLike | Callable[..., CacheLike] | None,
     *,
+    ttl: Optional[Callable[..., int | float] | int | float] = None,
     jitter: Optional[int] = None,
     key_builder: Optional[str | Callable[..., str]] = None,
     condition: Optional[Callable[[Any], bool]] = None,
@@ -240,7 +240,8 @@ def cached(
     sync and async callables.
 
     Args:
-        cache (Any): Cache instance implementing the sync or async interface.
+        cache (CacheLike | Callable[..., CacheLike] | None): Cache instance implementing
+            the sync or async interface, or a callable that returns such an instance.
         ttl (Callable[..., int | float] | int | float | None): Freshness period in seconds.
             Can be a static value (int/float) or a callable that receives the function's
             arguments and returns a dynamic TTL. Falls back to None on callable errors.
@@ -319,6 +320,33 @@ def cached(
 
             return _sync_passthrough
 
+        # Resolve callable cache to actual cache instance
+        resolved_cache: CacheLike | None
+        if callable(cache):
+            try:
+                resolved_cache = cache()
+            except Exception as e:
+                _logger.error("Failed to resolve callable cache for %r: %s; using pass-through mode", fn, e)
+                resolved_cache = None
+        else:
+            resolved_cache = cache
+
+        # If resolved cache is None, fall back to pass-through mode
+        if resolved_cache is None:
+            if is_coro:
+
+                @functools.wraps(fn)
+                async def _async_passthrough_resolved(*args: Any, **kwargs: Any) -> Any:
+                    return await fn(*args, **kwargs)
+
+                return _async_passthrough_resolved
+
+            @functools.wraps(fn)
+            def _sync_passthrough_resolved(*args: Any, **kwargs: Any) -> Any:
+                return fn(*args, **kwargs)
+
+            return _sync_passthrough_resolved
+
         def _finalize_tags(result: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> list[str]:
             out: list[str] = []
             if tags:
@@ -346,10 +374,10 @@ def cached(
                 # No stale logic: store raw value
                 # Normalize ttl to expected type (int | timedelta | None)
                 ttl_arg = int(effective_ttl) if isinstance(effective_ttl, float) else effective_ttl
-                cache.set(key, value, ttl=ttl_arg)
+                resolved_cache.set(key, value, ttl=ttl_arg)
             else:
                 envelope = {"__cachine__": 1, "v": value, "fu": fresh_until}
-                cache.set(key, envelope, ttl=store_ttl)
+                resolved_cache.set(key, envelope, ttl=store_ttl)
 
         def _get_cached_entry(key: str) -> tuple[bool, Any, Optional[float]]:
             """Read cached entry and freshness info.
@@ -360,7 +388,7 @@ def cached(
             Returns:
                 tuple[bool, Any, float | None]: ``(hit, value, fresh_until_ts)``.
             """
-            val = cache.get(key, default=_MISSING)
+            val = resolved_cache.get(key, default=_MISSING)
             if val is _MISSING:
                 return False, None, None
             if isinstance(val, dict) and val.get("__cachine__") == 1 and "fu" in val:
@@ -377,7 +405,7 @@ def cached(
             Returns:
                 tuple[bool, Any, float | None]: ``(hit, value, fresh_until_ts)``.
             """
-            val = await cache.get(key, default=_MISSING)
+            val = await resolved_cache.get(key, default=_MISSING)
             if val is _MISSING:
                 return False, None, None
             if isinstance(val, dict) and val.get("__cachine__") == 1 and "fu" in val:
@@ -424,9 +452,9 @@ def cached(
                 _store_value(key, result, effective_ttl)
                 # attach tags
                 final_tags = _finalize_tags(result, args, kwargs)
-                if final_tags and hasattr(cache, "add_tags"):
+                if final_tags and hasattr(resolved_cache, "add_tags"):
                     try:
-                        cache.add_tags(key, final_tags)
+                        resolved_cache.add_tags(key, final_tags)
                     except Exception:
                         pass
             finally:
@@ -542,12 +570,12 @@ def cached(
                                         effective_ttl = _compute_effective_ttl(args, kwargs)
                                         store_ttl, _, fresh_until2 = _compute_ttls(effective_ttl, jitter, stale_ttl)
                                         envelope = {"__cachine__": 1, "v": result, "fu": fresh_until2}
-                                        maybe_set = cache.set(key, envelope, ttl=store_ttl)
+                                        maybe_set = resolved_cache.set(key, envelope, ttl=store_ttl)
                                         if inspect.isawaitable(maybe_set):
                                             await cast(Any, maybe_set)
                                         final_tags = _finalize_tags(result, args, kwargs)
-                                        if final_tags and hasattr(cache, "add_tags"):
-                                            maybe = cache.add_tags(key, final_tags)
+                                        if final_tags and hasattr(resolved_cache, "add_tags"):
+                                            maybe = resolved_cache.add_tags(key, final_tags)
                                             if inspect.isawaitable(maybe):
                                                 await cast(Any, maybe)
                                     finally:
@@ -602,17 +630,17 @@ def cached(
                     store_ttl, _, fresh_until3 = _compute_ttls(effective_ttl, jitter, stale_ttl)
                     if effective_ttl is None or stale_ttl is None:
                         ttl_arg = int(effective_ttl) if isinstance(effective_ttl, float) else effective_ttl
-                        maybe_set2 = cache.set(key, result, ttl=ttl_arg)
+                        maybe_set2 = resolved_cache.set(key, result, ttl=ttl_arg)
                         if inspect.isawaitable(maybe_set2):
                             await cast(Any, maybe_set2)
                     else:
                         envelope = {"__cachine__": 1, "v": result, "fu": fresh_until3}
-                        maybe_set3 = cache.set(key, envelope, ttl=store_ttl)
+                        maybe_set3 = resolved_cache.set(key, envelope, ttl=store_ttl)
                         if inspect.isawaitable(maybe_set3):
                             await cast(Any, maybe_set3)
                     final_tags = _finalize_tags(result, args, kwargs)
-                    if final_tags and hasattr(cache, "add_tags"):
-                        maybe = cache.add_tags(key, final_tags)
+                    if final_tags and hasattr(resolved_cache, "add_tags"):
+                        maybe = resolved_cache.add_tags(key, final_tags)
                         try:
                             if inspect.isawaitable(maybe):
                                 await cast(Any, maybe)
@@ -677,9 +705,9 @@ def cached(
                 effective_ttl = _compute_effective_ttl(args, kwargs)
                 _store_value(key, result, effective_ttl)
                 final_tags = _finalize_tags(result, args, kwargs)
-                if final_tags and hasattr(cache, "add_tags"):
+                if final_tags and hasattr(resolved_cache, "add_tags"):
                     try:
-                        cache.add_tags(key, final_tags)
+                        resolved_cache.add_tags(key, final_tags)
                     except Exception:
                         pass
                 return result
