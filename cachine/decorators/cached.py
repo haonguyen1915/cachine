@@ -72,13 +72,18 @@ _MISSING = object()
 
 
 def _build_key(  # pylint: disable=too-many-branches,too-many-nested-blocks
-    fn: Callable[..., Any], key_builder: Optional[Any], version: Optional[str], args: tuple[Any, ...], kwargs: dict[str, Any]
+    fn: Callable[..., Any],
+    key_builder: Optional[str | Callable[..., str]],
+    version: Optional[str],
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
 ) -> str:
     """Build a stable cache key for a function call.
 
     Args:
         fn (Callable[..., Any]): Wrapped function.
-        key_builder (Callable[..., str] | None): Optional custom key builder.
+        key_builder (str | Callable[..., str] | None): Optional custom key builder;
+            either a string template or a callable.
         version (str | None): Optional version string to append.
         args (tuple[Any, ...]): Positional arguments.
         kwargs (dict[str, Any]): Keyword arguments.
@@ -216,12 +221,12 @@ def _compute_ttls(
 
 def cached(
     cache: CacheLike | None,
-    ttl: Optional[int | float] = None,
+    ttl: Optional[Callable[..., int | float] | int | float] = None,
     *,
     jitter: Optional[int] = None,
-    key_builder: Optional[Any] = None,
+    key_builder: Optional[str | Callable[..., str]] = None,
     condition: Optional[Callable[[Any], bool]] = None,
-    enabled: Optional[bool | Callable[[KeyContext, tuple[Any, ...], dict[str, Any]], bool]] = True,
+    enabled: Optional[bool | Callable[..., bool]] = True,
     version: Optional[str] = None,
     cache_none: bool = False,
     stale_ttl: Optional[int] = None,
@@ -236,13 +241,18 @@ def cached(
 
     Args:
         cache (Any): Cache instance implementing the sync or async interface.
-        ttl (int | float | None): Freshness period in seconds.
+        ttl (Callable[..., int | float] | int | float | None): Freshness period in seconds.
+            Can be a static value (int/float) or a callable that receives the function's
+            arguments and returns a dynamic TTL. Falls back to None on callable errors.
         jitter (int | None): Max random seconds added to ``ttl`` to stagger refreshes.
         key_builder (Callable[..., str] | str | None): Custom key builder; either a callable
             receiving ``(ctx, *args, **kwargs)`` or a template string using ``str.format`` with
             placeholders like ``{0}``, ``{uid}``, and ``{ctx.full_name}``. Defaults to a stable
             key derived from function identity and normalized args/kwargs.
         condition (Callable[[Any], bool] | None): Predicate applied to the result; cache only if True.
+        enabled (bool | Callable[..., bool]): Whether caching is enabled. Can be a static boolean
+            or a callable that receives the function's arguments and returns True to enable caching
+            or False to bypass it. Falls back to True on callable errors.
         version (str | None): Version string appended to cache key for explicit busting.
         cache_none (bool): Whether to cache ``None`` results. Defaults to False.
         stale_ttl (int | None): Additional stale window during which stale data is served
@@ -265,6 +275,23 @@ def cached(
           stale window, the stale value is returned immediately and a refresh is scheduled.
         - Tags: When tags are provided and the cache supports ``add_tags``, tags are attached
           after storing so future ``invalidate_tags`` can purge the entry.
+        - Dynamic TTL: When ``ttl`` is a callable, it receives the function arguments and returns
+          a TTL value per-call. Example: ``ttl=lambda user_id, premium=False: 3600 if premium else 60``
+
+    Examples:
+        Static TTL:
+
+        >>> @cached(cache=cache, ttl=60)
+        ... def get_user(user_id: int):
+        ...     return fetch_user(user_id)
+
+        Dynamic TTL based on function arguments:
+
+        >>> @cached(cache=cache, ttl=lambda user_id, premium=False: 3600 if premium else 60)
+        ... def get_user(user_id: int, premium: bool = False):
+        ...     return fetch_user(user_id)
+        >>> get_user(123)  # Uses TTL=60 (default premium=False)
+        >>> get_user(456, premium=True)  # Uses TTL=3600
     """
 
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
@@ -313,12 +340,12 @@ def cached(
                     seen.add(t)
             return unique
 
-        def _store_value(key: str, value: Any) -> None:
-            store_ttl, _fresh_ttl, fresh_until = _compute_ttls(ttl, jitter, stale_ttl)
-            if ttl is None or stale_ttl is None:
+        def _store_value(key: str, value: Any, effective_ttl: Optional[int | float]) -> None:
+            store_ttl, _fresh_ttl, fresh_until = _compute_ttls(effective_ttl, jitter, stale_ttl)
+            if effective_ttl is None or stale_ttl is None:
                 # No stale logic: store raw value
                 # Normalize ttl to expected type (int | timedelta | None)
-                ttl_arg = int(ttl) if isinstance(ttl, float) else ttl
+                ttl_arg = int(effective_ttl) if isinstance(effective_ttl, float) else effective_ttl
                 cache.set(key, value, ttl=ttl_arg)
             else:
                 envelope = {"__cachine__": 1, "v": value, "fu": fresh_until}
@@ -393,7 +420,8 @@ def cached(
                     return
                 if condition is not None and not condition(result):
                     return
-                _store_value(key, result)
+                effective_ttl = _compute_effective_ttl(args, kwargs)
+                _store_value(key, result, effective_ttl)
                 # attach tags
                 final_tags = _finalize_tags(result, args, kwargs)
                 if final_tags and hasattr(cache, "add_tags"):
@@ -404,21 +432,65 @@ def cached(
             finally:
                 _sf.release(key)
 
+        def _compute_effective_ttl(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Optional[int | float]:
+            """Compute the effective TTL for this call.
+
+            Args:
+                args: Function positional arguments.
+                kwargs: Function keyword arguments.
+
+            Returns:
+                The TTL value (int/float) or None.
+            """
+            if ttl is None:
+                return None
+            if callable(ttl):
+                try:
+                    # Try calling with args/kwargs
+                    return ttl(*args, **kwargs)
+                except TypeError:
+                    # Try without kwargs if signature mismatch
+                    try:
+                        return ttl(*args)
+                    except Exception:
+                        # Fall back to None on any error
+                        _logger.warning("ttl callable failed for %r; falling back to None", fn)
+                        return None
+                except Exception:
+                    _logger.warning("ttl callable failed for %r; falling back to None", fn)
+                    return None
+            return ttl
+
         def _call_enabled_predicate(args: tuple[Any, ...], kwargs: dict[str, Any]) -> bool:
-            # Evaluate the enabled predicate (if callable) using KeyContext and the call args
-            en = enabled
-            if en is None:
+            """Evaluate the enabled predicate for this call.
+
+            Args:
+                args: Function positional arguments.
+                kwargs: Function keyword arguments.
+
+            Returns:
+                True if caching is enabled, False otherwise.
+            """
+            if enabled is None:
                 return True
-            if isinstance(en, bool):
-                return en
-            try:
-                module = fn.__module__
-                qualname = fn.__qualname__ if hasattr(fn, "__qualname__") else fn.__name__
-                ctx = KeyContext(module=module, qualname=qualname, full_name=f"{module}.{qualname}", version=version)
-                return bool(en(ctx, args, kwargs))
-            except Exception:
-                # On any error evaluating predicate, default to enabled
-                return True
+            if isinstance(enabled, bool):
+                return enabled
+            if callable(enabled):
+                try:
+                    # Try calling with args/kwargs
+                    return bool(enabled(*args, **kwargs))
+                except TypeError:
+                    # Try without kwargs if signature mismatch
+                    try:
+                        return bool(enabled(*args))
+                    except Exception:
+                        # Fall back to True on any error
+                        _logger.warning("enabled callable failed for %r; falling back to True", fn)
+                        return True
+                except Exception:
+                    _logger.warning("enabled callable failed for %r; falling back to True", fn)
+                    return True
+            return True
 
         if is_coro:
 
@@ -467,7 +539,8 @@ def cached(
                                             return
                                         if condition is not None and not condition(result):
                                             return
-                                        store_ttl, _, fresh_until2 = _compute_ttls(ttl, jitter, stale_ttl)
+                                        effective_ttl = _compute_effective_ttl(args, kwargs)
+                                        store_ttl, _, fresh_until2 = _compute_ttls(effective_ttl, jitter, stale_ttl)
                                         envelope = {"__cachine__": 1, "v": result, "fu": fresh_until2}
                                         maybe_set = cache.set(key, envelope, ttl=store_ttl)
                                         if inspect.isawaitable(maybe_set):
@@ -525,9 +598,10 @@ def cached(
                         return result
                     if condition is not None and not condition(result):
                         return result
-                    store_ttl, _, fresh_until3 = _compute_ttls(ttl, jitter, stale_ttl)
-                    if ttl is None or stale_ttl is None:
-                        ttl_arg = int(ttl) if isinstance(ttl, float) else ttl
+                    effective_ttl = _compute_effective_ttl(args, kwargs)
+                    store_ttl, _, fresh_until3 = _compute_ttls(effective_ttl, jitter, stale_ttl)
+                    if effective_ttl is None or stale_ttl is None:
+                        ttl_arg = int(effective_ttl) if isinstance(effective_ttl, float) else effective_ttl
                         maybe_set2 = cache.set(key, result, ttl=ttl_arg)
                         if inspect.isawaitable(maybe_set2):
                             await cast(Any, maybe_set2)
@@ -600,7 +674,8 @@ def cached(
                     return result
                 if condition is not None and not condition(result):
                     return result
-                _store_value(key, result)
+                effective_ttl = _compute_effective_ttl(args, kwargs)
+                _store_value(key, result, effective_ttl)
                 final_tags = _finalize_tags(result, args, kwargs)
                 if final_tags and hasattr(cache, "add_tags"):
                     try:
