@@ -2,8 +2,9 @@ from typing import Any
 
 import pytest
 
-from cachine import cached
 from cachine import AsyncRedisCache
+from cachine.decorators import cached
+
 
 @pytest.mark.asyncio
 async def test_async_args_only(a_redis_cache: AsyncRedisCache) -> None:

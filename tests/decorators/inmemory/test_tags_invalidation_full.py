@@ -1,6 +1,7 @@
 from typing import Any
 
-from cachine import InMemoryCache, cached
+from cachine import InMemoryCache
+from cachine.decorators import cached
 
 
 def test_tags_full_invalidation_inmemory() -> None:

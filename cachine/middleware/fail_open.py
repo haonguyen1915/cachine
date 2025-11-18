@@ -32,6 +32,7 @@ class FailOpenMiddleware(BaseMiddleware):
 
     def __init__(self, cache: SyncCache, *, log_errors: bool = True, log_tracebacks: bool = False) -> None:
         super().__init__(cache)
+        self._cache: SyncCache = cache  # narrow type
         self._local_counters: dict[str, int] = {}
         self._log_errors = log_errors
         self._log_tracebacks = log_tracebacks
@@ -54,7 +55,6 @@ class FailOpenMiddleware(BaseMiddleware):
             self._cache.set(key, value, ttl=ttl, serializer=serializer)
         except Exception as e:
             self._log_error("Cache set failed for key '%s': %s: %s", key, type(e).__name__, str(e))
-            return None
 
     def delete(self, key: str) -> bool:
         try:
@@ -129,10 +129,11 @@ class FailOpenMiddleware(BaseMiddleware):
     # ---- Tags / maintenance ----
     def add_tags(self, key: str, tags: list[str]) -> None:
         try:
-            self._cache.add_tags(key, tags)
+            add_fn = getattr(self._cache, "add_tags", None)
+            if add_fn is not None:
+                add_fn(key, tags)
         except Exception as e:
             self._log_error("Cache add_tags failed for key '%s': %s: %s", key, type(e).__name__, str(e))
-            return None
 
     def invalidate_tags(self, tags: list[str]) -> int:
         try:
@@ -146,17 +147,16 @@ class FailOpenMiddleware(BaseMiddleware):
             self._cache.clear(dangerously_clear_all=dangerously_clear_all)
         except Exception as e:
             self._log_error("Cache clear failed: %s: %s", type(e).__name__, str(e))
-            return None
 
     # ---- Health ----
-    def ping(self) -> HealthStatus:  # type: ignore[override]
+    def ping(self) -> HealthStatus:
         try:
             return self._cache.ping()
         except Exception as e:
             self._log_error("Cache ping failed: %s: %s", type(e).__name__, str(e))
             return {"healthy": False, "latency_ms": 0.0, "backend": "fail-open"}
 
-    def ping_ok(self) -> bool:  # type: ignore[override]
+    def ping_ok(self) -> bool:
         try:
             return bool(self._cache.ping_ok())
         except Exception as e:
@@ -177,6 +177,7 @@ class AsyncFailOpenMiddleware(BaseMiddleware):
 
     def __init__(self, cache: AsyncCache, *, log_errors: bool = True, log_tracebacks: bool = False) -> None:
         super().__init__(cache)
+        self._cache: AsyncCache = cache  # narrow type
         self._local_counters: dict[str, int] = {}
         self._log_errors = log_errors
         self._log_tracebacks = log_tracebacks
@@ -199,7 +200,6 @@ class AsyncFailOpenMiddleware(BaseMiddleware):
             await self._cache.set(key, value, ttl=ttl, serializer=serializer)
         except Exception as e:
             self._log_error("Async cache set failed for key '%s': %s: %s", key, type(e).__name__, str(e))
-            return None
 
     async def delete(self, key: str) -> bool:
         try:
@@ -273,10 +273,17 @@ class AsyncFailOpenMiddleware(BaseMiddleware):
     # ---- Tags / maintenance ----
     async def add_tags(self, key: str, tags: list[str]) -> None:
         try:
-            await self._cache.add_tags(key, tags)
+            add_fn = getattr(self._cache, "add_tags", None)
+            if add_fn is not None:
+                res = add_fn(key, tags)
+                try:
+                    import inspect as _inspect
+                    if _inspect.isawaitable(res):
+                        await res
+                except Exception:
+                    pass
         except Exception as e:
             self._log_error("Async cache add_tags failed for key '%s': %s: %s", key, type(e).__name__, str(e))
-            return None
 
     async def invalidate_tags(self, tags: list[str]) -> int:
         try:
@@ -290,17 +297,16 @@ class AsyncFailOpenMiddleware(BaseMiddleware):
             await self._cache.clear(dangerously_clear_all=dangerously_clear_all)
         except Exception as e:
             self._log_error("Async cache clear failed: %s: %s", type(e).__name__, str(e))
-            return None
 
     # ---- Health ----
-    async def ping(self) -> HealthStatus:  # type: ignore[override]
+    async def ping(self) -> HealthStatus:
         try:
             return await self._cache.ping()
         except Exception as e:
             self._log_error("Async cache ping failed: %s: %s", type(e).__name__, str(e))
             return {"healthy": False, "latency_ms": 0.0, "backend": "fail-open"}
 
-    async def ping_ok(self) -> bool:  # type: ignore[override]
+    async def ping_ok(self) -> bool:
         try:
             return bool(await self._cache.ping_ok())
         except Exception as e:

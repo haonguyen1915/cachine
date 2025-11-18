@@ -1,4 +1,5 @@
-from cachine import InMemoryCache, cached
+from cachine import InMemoryCache
+from cachine.decorators import cached
 from cachine.decorators.cached import KeyContext
 
 

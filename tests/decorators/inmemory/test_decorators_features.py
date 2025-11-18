@@ -1,7 +1,8 @@
 import time
 from threading import Barrier, Thread
 
-from cachine import InMemoryCache, cached
+from cachine import InMemoryCache
+from cachine.decorators import cached
 
 
 def test_condition_and_cache_none() -> None:

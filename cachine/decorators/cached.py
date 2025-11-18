@@ -8,7 +8,7 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
-from typing import Any, NamedTuple, Optional
+from typing import Any, NamedTuple, Optional, cast
 
 from ..core.types import CacheLike
 from ..utils.key_builder import default_key_builder, template_key_builder
@@ -316,7 +316,9 @@ def cached(
             store_ttl, _fresh_ttl, fresh_until = _compute_ttls(ttl, jitter, stale_ttl)
             if ttl is None or stale_ttl is None:
                 # No stale logic: store raw value
-                cache.set(key, value, ttl=ttl)
+                # Normalize ttl to expected type (int | timedelta | None)
+                ttl_arg = int(ttl) if isinstance(ttl, float) else ttl
+                cache.set(key, value, ttl=ttl_arg)
             else:
                 envelope = {"__cachine__": 1, "v": value, "fu": fresh_until}
                 cache.set(key, envelope, ttl=store_ttl)
@@ -447,12 +449,14 @@ def cached(
                                             return
                                         store_ttl, _, fresh_until2 = _compute_ttls(ttl, jitter, stale_ttl)
                                         envelope = {"__cachine__": 1, "v": result, "fu": fresh_until2}
-                                        await cache.set(key, envelope, ttl=store_ttl)
+                                        maybe_set = cache.set(key, envelope, ttl=store_ttl)
+                                        if inspect.isawaitable(maybe_set):
+                                            await cast(Any, maybe_set)
                                         final_tags = _finalize_tags(result, args, kwargs)
                                         if final_tags and hasattr(cache, "add_tags"):
                                             maybe = cache.add_tags(key, final_tags)
                                             if inspect.isawaitable(maybe):
-                                                await maybe
+                                                await cast(Any, maybe)
                                     finally:
                                         _sf.release(key)
 
@@ -503,15 +507,23 @@ def cached(
                         return result
                     store_ttl, _, fresh_until3 = _compute_ttls(ttl, jitter, stale_ttl)
                     if ttl is None or stale_ttl is None:
-                        await cache.set(key, result, ttl=ttl)
+                        ttl_arg = int(ttl) if isinstance(ttl, float) else ttl
+                        maybe_set2 = cache.set(key, result, ttl=ttl_arg)
+                        if inspect.isawaitable(maybe_set2):
+                            await cast(Any, maybe_set2)
                     else:
                         envelope = {"__cachine__": 1, "v": result, "fu": fresh_until3}
-                        await cache.set(key, envelope, ttl=store_ttl)
+                        maybe_set3 = cache.set(key, envelope, ttl=store_ttl)
+                        if inspect.isawaitable(maybe_set3):
+                            await cast(Any, maybe_set3)
                     final_tags = _finalize_tags(result, args, kwargs)
                     if final_tags and hasattr(cache, "add_tags"):
                         maybe = cache.add_tags(key, final_tags)
-                        if inspect.isawaitable(maybe):
-                            await maybe
+                        try:
+                            if inspect.isawaitable(maybe):
+                                await cast(Any, maybe)
+                        except Exception:
+                            pass
                     return result
                 finally:
                     if singleflight:

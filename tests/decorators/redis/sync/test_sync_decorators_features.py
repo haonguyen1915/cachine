@@ -1,9 +1,9 @@
 import hashlib
 import time
 from threading import Barrier, Thread
-from typing import Any
 
-from cachine import RedisCache, cached
+from cachine import RedisCache
+from cachine.decorators import cached
 
 
 def _kb(a: int, b: int) -> str:

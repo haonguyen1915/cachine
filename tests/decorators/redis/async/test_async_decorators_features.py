@@ -2,7 +2,8 @@ from typing import Any
 
 import pytest
 
-from cachine import AsyncRedisCache, cached
+from cachine import AsyncRedisCache
+from cachine.decorators import cached
 
 
 @pytest.mark.asyncio

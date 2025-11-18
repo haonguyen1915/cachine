@@ -136,7 +136,8 @@ cache.delete("user:123")
 The `@cached` decorator automatically caches function results:
 
 ```python
-from cachine import InMemoryCache, cached
+from cachine import InMemoryCache
+from cachine.decorators import cached
 import time
 
 cache = InMemoryCache()
@@ -161,14 +162,13 @@ result = expensive_computation(21)  # Returns immediately
 Share cache across multiple servers with Redis:
 
 ```python
-from cachine import cached
-from cachine import RedisCache
+from cachine import cache_from_url
+from cachine.decorators import cached
 from cachine.serializers import JSONSerializer
 
-# Create Redis cache
-cache = RedisCache(
-    host="localhost",
-    port=6379,
+# Create Redis cache from URL
+cache = cache_from_url(
+    "redis://localhost:6379/0",
     namespace="myapp",  # Prefix all keys with "myapp:"
     serializer=JSONSerializer()
 )
@@ -187,10 +187,11 @@ Full async/await support for async applications:
 
 ```python
 import asyncio
+from cachine import async_cache_from_url
 from cachine.decorators import cached
-from cachine import AsyncRedisCache
 
-cache = AsyncRedisCache(host="localhost", namespace="myapp")
+# Create async Redis cache from URL
+cache = async_cache_from_url("redis://localhost:6379/0", namespace="myapp")
 
 @cached(cache=cache, ttl=60)
 async def fetch_data(item_id):
@@ -575,10 +576,11 @@ Ensure your app still works when Redis is down. Wrap caches with a fail‑open m
 
 Sync:
 ```python
-from cachine import RedisCache
+from cachine import cache_from_url
+from cachine.decorators import cached
 from cachine.middleware.fail_open import FailOpenMiddleware
 
-base = RedisCache(host="localhost", namespace="myapp")
+base = cache_from_url("redis://localhost:6379/0", namespace="myapp")
 cache = FailOpenMiddleware(base)
 
 @cached(cache=cache, ttl=60)
@@ -588,10 +590,11 @@ def compute(x):
 
 Async:
 ```python
-from cachine import AsyncRedisCache
+from cachine import async_cache_from_url
+from cachine.decorators import cached
 from cachine.middleware.fail_open import AsyncFailOpenMiddleware
 
-base = AsyncRedisCache(host="localhost", namespace="myapp")
+base = async_cache_from_url("redis://localhost:6379/0", namespace="myapp")
 cache = AsyncFailOpenMiddleware(base)
 
 @cached(cache=cache, ttl=60)
@@ -665,53 +668,62 @@ cache.set("data", any_python_object)
 
 ## Configuration & Factory
 
-### From Dictionary
+### Factory Functions from URLs
+
+Create cache instances using connection URLs:
 
 ```python
-from cachine import create_cache
+from cachine import cache_from_url, async_cache_from_url
 
-config = {
-    "backend": "redis",
-    "host": "localhost",
-    "port": 6379,
-    "db": 0,
-    "namespace": "myapp",
-    "password": "optional-password",
-    # Optional connection tuning
-    "socket_timeout": 2.5,            # seconds for read/write operations
-    "socket_connect_timeout": 1.0,    # seconds for initial TCP connect
-    "retry_on_timeout": true          # let redis-py retry on timeouts
-}
+# Sync Redis cache
+cache = cache_from_url("redis://localhost:6379/0", namespace="myapp")
 
-# Create sync cache
-cache = create_cache(config, mode="sync")
+# Async Redis cache
+async_cache = async_cache_from_url("redis://localhost:6379/0", namespace="myapp")
 
-# Create async cache
-cache = create_cache(config, mode="async")
+# With authentication
+cache = cache_from_url("redis://user:password@localhost:6379/0", namespace="myapp")
+
+# With SSL/TLS
+cache = cache_from_url("rediss://localhost:6379/0", namespace="myapp")
+
+# Redis Cluster
+cache = cache_from_url(
+    "redis://node1:7000,node2:7001,node3:7002",
+    namespace="myapp"
+)
+
+# Redis Sentinel
+cache = cache_from_url(
+    "redis+sentinel://mymaster/0?sentinels=s1:26379,s2:26379",
+    namespace="myapp"
+)
 ```
 
-### From Environment Variables
+### URL Parameters
 
-```bash
-# .env file
-CACHE_BACKEND=redis
-CACHE_HOST=localhost
-CACHE_PORT=6379
-CACHE_DB=0
-CACHE_PASSWORD=your-password
-CACHE_SSL=false
-CACHE_NAMESPACE=myapp
-# Optional timeouts
-CACHE_SOCKET_TIMEOUT=2.5
-CACHE_SOCKET_CONNECT_TIMEOUT=1.0
-CACHE_RETRY_ON_TIMEOUT=true
-```
+Configure connection behavior via URL query parameters:
 
 ```python
-from cachine import create_cache
+from cachine import cache_from_url
 
-# Reads environment variables
-cache = create_cache.from_env(mode="sync")
+# Timeout configuration
+cache = cache_from_url(
+    "redis://localhost:6379/0?"
+    "socket_timeout=5.0&"              # Read/write timeout (seconds)
+    "socket_connect_timeout=2.0&"      # Initial connection timeout
+    "retry_on_timeout=true&"           # Retry on timeout
+    "decode_responses=true",           # Decode Redis responses to str
+    namespace="myapp"
+)
+
+# Cluster with SSL and timeouts
+cache = cache_from_url(
+    "rediss://user:pass@node1:7000,node2:7001?"
+    "socket_timeout=10&"
+    "retry_on_timeout=1",
+    namespace="myapp"
+)
 ```
 
 ---

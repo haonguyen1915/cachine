@@ -1,9 +1,9 @@
 import time
-from typing import Any
 
 import pytest
 
-from cachine import RedisCache, cached
+from cachine import RedisCache
+from cachine.decorators import cached
 
 
 def test_exception_not_cached_and_propagates_redis(redis_cache: RedisCache) -> None:

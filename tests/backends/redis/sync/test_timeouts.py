@@ -6,7 +6,6 @@ import time
 
 import pytest
 
-from cachine.backends.redis.async_ import AsyncRedisCache
 from cachine.backends.redis.sync import RedisCache
 from cachine.models.redis_config import RedisSingleConfig
 
@@ -24,7 +23,7 @@ def test_sync_redis_socket_connect_timeout() -> None:
 
     # Measure time to failure
     start = time.time()
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         cache.set("key", "value")
     elapsed = time.time() - start
 
@@ -47,7 +46,7 @@ def test_sync_redis_socket_timeout_on_slow_operations() -> None:
 
     # Should timeout quickly
     start = time.time()
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         cache.get("key")
     elapsed = time.time() - start
 
@@ -69,7 +68,7 @@ def test_sync_redis_retry_on_timeout_disabled() -> None:
 
     # Should fail on first attempt without retry
     start = time.time()
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         cache.set("key", "value")
     elapsed = time.time() - start
 

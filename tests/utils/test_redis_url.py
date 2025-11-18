@@ -162,8 +162,7 @@ class TestParseClusterRedisURL:
     def test_cluster_url_with_query_params(self) -> None:
         """Test parsing Redis Cluster URL with timeout query parameters."""
         config = parse_redis_url(
-            "redis://node1:7000,node2:7001?"
-            "socket_timeout=10&socket_connect_timeout=5&retry_on_timeout=true&decode_responses=1"
+            "redis://node1:7000,node2:7001?" "socket_timeout=10&socket_connect_timeout=5&retry_on_timeout=true&decode_responses=1"
         )
         assert isinstance(config, RedisClusterConfig)
         assert config.socket_timeout == 10.0
@@ -247,9 +246,7 @@ class TestParseSentinelRedisURL:
 
     def test_sentinel_url_with_extra_params(self) -> None:
         """Test parsing Redis Sentinel URL with extra (non-standard) query parameters."""
-        config = parse_redis_url(
-            "redis+sentinel://mymaster/0?sentinels=sentinel1:26379&custom_param=value&health_check_interval=30"
-        )
+        config = parse_redis_url("redis+sentinel://mymaster/0?sentinels=sentinel1:26379&custom_param=value&health_check_interval=30")
         assert isinstance(config, RedisSentinelConfig)
         assert config.extra["custom_param"] == "value"
         assert config.extra["health_check_interval"] == 30.0
@@ -354,9 +351,7 @@ class TestComplexURLs:
 
     def test_url_with_multiple_query_params(self) -> None:
         """Test parsing URL with multiple query parameters."""
-        config = parse_redis_url(
-            "redis://localhost:6379/0?socket_timeout=5&socket_connect_timeout=3&retry_on_timeout=true"
-        )
+        config = parse_redis_url("redis://localhost:6379/0?socket_timeout=5&socket_connect_timeout=3&retry_on_timeout=true")
         assert isinstance(config, RedisSingleConfig)
         assert config.socket_timeout == 5.0
         assert config.socket_connect_timeout == 3.0
@@ -365,9 +360,7 @@ class TestComplexURLs:
     def test_cluster_url_production_like(self) -> None:
         """Test parsing production-like cluster URL."""
         config = parse_redis_url(
-            "rediss://user:pass@prod-redis-01.example.com:7000,"
-            "prod-redis-02.example.com:7001,"
-            "prod-redis-03.example.com:7002"
+            "rediss://user:pass@prod-redis-01.example.com:7000," "prod-redis-02.example.com:7001," "prod-redis-03.example.com:7002"
         )
         assert isinstance(config, RedisClusterConfig)
         assert config.ssl is True

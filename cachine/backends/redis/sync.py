@@ -3,19 +3,11 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
-from .types import SyncRedisClientProto
-from ...core.types import HealthStatus
-from ...models.redis_config import RedisClusterConfig, RedisConfig, RedisSentinelConfig, RedisSingleConfig
-from ...utils.helpers import to_seconds
-
-try:
-    from redis import RedisCluster, Redis
-    from redis.cluster import ClusterNode
-    from redis.sentinel import Sentinel
-except Exception as e:
-    raise RuntimeError("redis cluster client not available; install redis>=4 with cluster support") from e
+from cachine.core.types import HealthStatus
+from cachine.models.redis_config import RedisClusterConfig, RedisConfig, RedisSentinelConfig, RedisSingleConfig
+from cachine.utils.helpers import to_seconds
 
 _MISSING = object()
 
@@ -51,8 +43,8 @@ class RedisCache:
         pubsub_channel: Optional[str] = "cachine:invalidate",
         auto_publish_invalidations: bool = False,
     ) -> None:
-        # Typed client attribute
-        self._client: SyncRedisClientProto
+        # Client attribute (runtime redis client)
+        self._client: Any
         # Create appropriate client based on config type
         if isinstance(config, RedisSingleConfig):
             self._client = self._create_single_client(config)
@@ -188,7 +180,12 @@ class RedisCache:
         norm_keys = [k.decode("utf-8") if isinstance(k, bytes | bytearray) else k for k in keys]
         if norm_keys:
             try:
-                client.delete_many(*norm_keys)
+                # Prefer bulk delete when available; fall back to one-by-one
+                del_many = getattr(client, "delete_many", None)
+                if del_many is not None:
+                    del_many(*norm_keys)
+                else:
+                    client.delete(*norm_keys)
             except Exception:
                 for k in norm_keys:
                     try:
@@ -400,7 +397,7 @@ class RedisCache:
                 members = client.smembers(tkey)
             except Exception:
                 members = set()
-            for mk in members:
+            for mk in list(members):
                 # mk may be bytes
                 key_name = mk.decode("utf-8") if isinstance(mk, bytes | bytearray) else mk
                 try:
@@ -456,7 +453,7 @@ class RedisCache:
         return None
 
     # Internal helpers
-    def _require_client(self) -> SyncRedisClientProto:
+    def _require_client(self) -> Any:
         """Return the Redis client wrapper.
 
         Returns:
@@ -465,7 +462,7 @@ class RedisCache:
         return self._client
 
     @staticmethod
-    def _create_single_client(config: RedisSingleConfig) -> Redis:
+    def _create_single_client(config: RedisSingleConfig) -> Any:
         """Create client for single Redis instance.
 
         Args:
@@ -474,6 +471,11 @@ class RedisCache:
         Returns:
             Any: RedisClient wrapper instance.
         """
+        try:
+            from redis import Redis
+        except Exception as e:
+            raise RuntimeError("redis cluster client not available; install redis>=4 with cluster support") from e
+
         # Build kwargs from config, keeping bytes-oriented responses by default
         kwargs: dict[str, Any] = {
             "host": config.host,
@@ -498,7 +500,7 @@ class RedisCache:
         return Redis(**kwargs)
 
     @staticmethod
-    def _create_cluster_client(config: RedisClusterConfig) -> RedisCluster:
+    def _create_cluster_client(config: RedisClusterConfig) -> Any:
         """Create client for Redis Cluster.
 
         Args:
@@ -511,7 +513,8 @@ class RedisCache:
             RuntimeError: If redis cluster client is not available.
         """
         try:
-            from redis.cluster import RedisCluster
+            from redis import Redis, RedisCluster
+            from redis.cluster import ClusterNode
         except Exception as e:
             raise RuntimeError("redis cluster client not available; install redis>=4 with cluster support") from e
 
@@ -521,15 +524,10 @@ class RedisCache:
         # Try different redis-py API versions
 
         cluster_nodes = [ClusterNode(n["host"], n["port"]) for n in nodes]
-        return RedisCluster(
-            startup_nodes=cluster_nodes,
-            username=config.username,
-            password=config.password,
-            ssl=config.ssl
-        )
+        return RedisCluster(startup_nodes=cluster_nodes, username=config.username, password=config.password, ssl=config.ssl)
 
     @staticmethod
-    def _create_sentinel_client(config: RedisSentinelConfig) -> Redis:
+    def _create_sentinel_client(config: RedisSentinelConfig) -> Any:
         """Create client for Redis Sentinel.
 
         Args:
@@ -547,12 +545,12 @@ class RedisCache:
             raise RuntimeError("redis.sentinel is not available; install redis>=4") from e
 
         sentinel = Sentinel(list(config.sentinels), socket_timeout=2, ssl=config.ssl)
-        return sentinel.master_for(
+        return cast(Any, sentinel.master_for(
             config.service_name,
             db=config.db,
             password=config.password,
             ssl=config.ssl,
-        )
+        ))
 
     # Tag helpers
     def add_tags(self, key: str, tags: list[str]) -> None:
@@ -633,7 +631,7 @@ class RedisCache:
 
         try:
             client = self._require_client()
-            pubsub = client.pubsub()
+            pubsub: Any = client.pubsub()
             pubsub.subscribe(target_channel)
             for msg in pubsub.listen():
                 if not msg or msg.get("type") != "message":

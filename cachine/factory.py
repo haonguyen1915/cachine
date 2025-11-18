@@ -34,22 +34,13 @@ def cache_from_url(url: str, **kwargs: Any) -> Cache:
         >>> cache = cache_from_url("redis://localhost:6379/0", namespace="myapp")
 
         >>> # Redis with SSL and timeout
-        >>> cache = cache_from_url(
-        ...     "rediss://localhost:6379/0?socket_timeout=5&retry_on_timeout=true",
-        ...     namespace="myapp"
-        ... )
+        >>> cache = cache_from_url("rediss://localhost:6379/0?socket_timeout=5&retry_on_timeout=true", namespace="myapp")
 
         >>> # Redis Cluster
-        >>> cache = cache_from_url(
-        ...     "redis://node1:7000,node2:7001,node3:7002",
-        ...     namespace="myapp"
-        ... )
+        >>> cache = cache_from_url("redis://node1:7000,node2:7001,node3:7002", namespace="myapp")
 
         >>> # Redis Sentinel
-        >>> cache = cache_from_url(
-        ...     "redis+sentinel://mymaster/0?sentinels=sentinel1:26379,sentinel2:26379",
-        ...     namespace="myapp"
-        ... )
+        >>> cache = cache_from_url("redis+sentinel://mymaster/0?sentinels=sentinel1:26379,sentinel2:26379", namespace="myapp")
     """
     if not url:
         raise RedisURLParseError("URL cannot be empty")
@@ -76,11 +67,9 @@ def cache_from_url(url: str, **kwargs: Any) -> Cache:
         from .backends.redis.sync import RedisCache
 
         return RedisCache(config, namespace=namespace, serializer=serializer)
-    else:
-        raise RedisURLParseError(
-            f"Unsupported cache URL scheme: {scheme}. "
-            f"Supported schemes: redis://, rediss://, redis+sentinel://, rediss+sentinel://"
-        )
+    raise RedisURLParseError(
+        f"Unsupported cache URL scheme: {scheme}. " f"Supported schemes: redis://, rediss://, redis+sentinel://, rediss+sentinel://"
+    )
 
 
 def async_cache_from_url(url: str, **kwargs: Any) -> AsyncCache:
@@ -109,10 +98,7 @@ def async_cache_from_url(url: str, **kwargs: Any) -> AsyncCache:
         >>> cache = async_cache_from_url("redis://localhost:6379/0", namespace="myapp")
 
         >>> # Redis Cluster (async)
-        >>> cache = async_cache_from_url(
-        ...     "redis://node1:7000,node2:7001,node3:7002",
-        ...     namespace="myapp"
-        ... )
+        >>> cache = async_cache_from_url("redis://node1:7000,node2:7001,node3:7002", namespace="myapp")
     """
     if not url:
         raise RedisURLParseError("URL cannot be empty")
@@ -139,11 +125,9 @@ def async_cache_from_url(url: str, **kwargs: Any) -> AsyncCache:
         from .backends.redis.async_ import AsyncRedisCache
 
         return AsyncRedisCache(config, namespace=namespace, serializer=serializer)
-    else:
-        raise RedisURLParseError(
-            f"Unsupported cache URL scheme: {scheme}. "
-            f"Supported schemes: redis://, rediss://, redis+sentinel://, rediss+sentinel://"
-        )
+    raise RedisURLParseError(
+        f"Unsupported cache URL scheme: {scheme}. " f"Supported schemes: redis://, rediss://, redis+sentinel://, rediss+sentinel://"
+    )
 
 
 __all__ = [

@@ -2,7 +2,8 @@ import time
 
 import pytest
 
-from cachine import InMemoryCache, cached
+from cachine import InMemoryCache
+from cachine.decorators import cached
 
 
 def test_exception_not_cached_and_propagates_inmemory() -> None:

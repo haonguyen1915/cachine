@@ -70,7 +70,7 @@ def redis_cache() -> RedisCache:
             # Clear keys for this namespace then close
             cache.clear()
             cache.close()
-        except Exception as e:
+        except Exception:
             pass
 
 

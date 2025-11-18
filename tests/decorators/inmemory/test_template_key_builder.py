@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from cachine import InMemoryCache, cached
+from cachine import InMemoryCache
+from cachine.decorators import cached
 from cachine.utils.key_builder import template_key_builder
 
 

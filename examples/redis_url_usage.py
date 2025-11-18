@@ -44,9 +44,7 @@ def example_parse_urls() -> None:
     print("=" * 60)
     print("Redis Sentinel")
     print("=" * 60)
-    config = parse_redis_url(
-        "redis+sentinel://mymaster/0?sentinels=sentinel1:26379,sentinel2:26379,sentinel3:26379"
-    )
+    config = parse_redis_url("redis+sentinel://mymaster/0?sentinels=sentinel1:26379,sentinel2:26379,sentinel3:26379")
     print(f"Type: {config['type']}")
     print(f"Service Name: {config['service_name']}")
     print(f"Sentinels: {config['sentinels']}")

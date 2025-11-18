@@ -1,8 +1,8 @@
 import time
 from threading import Barrier, Thread
-from typing import Any
 
-from cachine import RedisCache, cached
+from cachine import RedisCache
+from cachine.decorators import cached
 
 
 def test_redis_cached_basic(redis_cache: RedisCache) -> None:

@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import os
 import time
-from typing import Any
 
 import pytest
 
-from cachine import cached
+from cachine import AsyncRedisCache, RedisCache
+from cachine.decorators import cached
 
 try:
     import pytest_asyncio  # noqa: F401

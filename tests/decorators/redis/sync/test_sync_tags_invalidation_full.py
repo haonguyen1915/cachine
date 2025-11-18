@@ -1,6 +1,7 @@
 from typing import Any
 
-from cachine import RedisCache, cached
+from cachine import RedisCache
+from cachine.decorators import cached
 
 
 def test_tags_full_invalidation_redis(redis_cache: RedisCache) -> None:

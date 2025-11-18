@@ -28,9 +28,7 @@ class TestCacheFromURL:
         from cachine.utils.redis_url import parse_redis_url
 
         # Just verify URL parsing works correctly
-        config = parse_redis_url(
-            "redis://localhost:7000,localhost:7001,localhost:7002"
-        )
+        config = parse_redis_url("redis://localhost:7000,localhost:7001,localhost:7002")
         assert isinstance(config, RedisClusterConfig)
         assert len(config.nodes) == 3
         assert config.nodes[0].host == "localhost"
@@ -72,9 +70,7 @@ class TestCacheFromURL:
         from cachine.serializers import JSONSerializer
 
         serializer = JSONSerializer()
-        cache = cache_from_url(
-            "redis://localhost:6379/0", namespace="test", serializer=serializer
-        )
+        cache = cache_from_url("redis://localhost:6379/0", namespace="test", serializer=serializer)
         assert isinstance(cache, RedisCache)
 
     def test_cache_from_url_with_all_timeout_params(self) -> None:
@@ -82,11 +78,7 @@ class TestCacheFromURL:
         from cachine.models import RedisSingleConfig
 
         cache = cache_from_url(
-            "redis://localhost:6379/0?"
-            "socket_timeout=5.5&"
-            "socket_connect_timeout=3.0&"
-            "retry_on_timeout=true&"
-            "decode_responses=yes",
+            "redis://localhost:6379/0?" "socket_timeout=5.5&" "socket_connect_timeout=3.0&" "retry_on_timeout=true&" "decode_responses=yes",
             namespace="test",
         )
         assert isinstance(cache, RedisCache)
@@ -115,11 +107,7 @@ class TestCacheFromURL:
         from cachine.utils.redis_url import parse_redis_url
 
         # Parse URL to verify config (avoid cluster connection)
-        config = parse_redis_url(
-            "rediss://user:pass@node1:7000,node2:7001,node3:7002?"
-            "socket_timeout=10&"
-            "retry_on_timeout=1"
-        )
+        config = parse_redis_url("rediss://user:pass@node1:7000,node2:7001,node3:7002?" "socket_timeout=10&" "retry_on_timeout=1")
         assert isinstance(config, RedisClusterConfig)
         assert config.ssl is True
         assert config.username == "user"
@@ -169,9 +157,7 @@ class TestAsyncCacheFromURL:
 
     def test_async_redis_cluster_url(self) -> None:
         """Test creating async Redis cache from cluster URL."""
-        cache = async_cache_from_url(
-            "redis://localhost:7000,localhost:7001,localhost:7002", namespace="test"
-        )
+        cache = async_cache_from_url("redis://localhost:7000,localhost:7001,localhost:7002", namespace="test")
         assert isinstance(cache, AsyncRedisCache)
         # Verify cluster config was created
         from cachine.models import RedisClusterConfig
@@ -215,9 +201,7 @@ class TestAsyncCacheFromURL:
         from cachine.serializers import JSONSerializer
 
         serializer = JSONSerializer()
-        cache = async_cache_from_url(
-            "redis://localhost:6379/0", namespace="test", serializer=serializer
-        )
+        cache = async_cache_from_url("redis://localhost:6379/0", namespace="test", serializer=serializer)
         assert isinstance(cache, AsyncRedisCache)
 
     def test_async_cache_from_url_with_all_timeout_params(self) -> None:
@@ -225,11 +209,7 @@ class TestAsyncCacheFromURL:
         from cachine.models import RedisSingleConfig
 
         cache = async_cache_from_url(
-            "redis://localhost:6379/0?"
-            "socket_timeout=5.5&"
-            "socket_connect_timeout=3.0&"
-            "retry_on_timeout=true&"
-            "decode_responses=yes",
+            "redis://localhost:6379/0?" "socket_timeout=5.5&" "socket_connect_timeout=3.0&" "retry_on_timeout=true&" "decode_responses=yes",
             namespace="test",
         )
         assert isinstance(cache, AsyncRedisCache)
@@ -257,9 +237,7 @@ class TestAsyncCacheFromURL:
         from cachine.models import RedisClusterConfig
 
         cache = async_cache_from_url(
-            "rediss://user:pass@localhost:7000,localhost:7001,localhost:7002?"
-            "socket_timeout=10&"
-            "retry_on_timeout=1",
+            "rediss://user:pass@localhost:7000,localhost:7001,localhost:7002?socket_timeout=10&retry_on_timeout=1",
             namespace="test",
         )
         assert isinstance(cache, AsyncRedisCache)

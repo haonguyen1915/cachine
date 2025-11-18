@@ -7,16 +7,8 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
-from .types import AsyncRedisClientProto
-from ...core.types import HealthStatus
-from ...models.redis_config import RedisClusterConfig, RedisConfig, RedisSentinelConfig, RedisSingleConfig
-
-try:
-    from redis.asyncio import Redis
-    from redis.asyncio.cluster import ClusterNode, RedisCluster
-    from redis.asyncio.sentinel import Sentinel
-except Exception as e:  # pragma: no cover
-    raise RuntimeError("redis.asyncio not available; install redis>=4") from e
+from cachine.core.types import HealthStatus
+from cachine.models.redis_config import RedisClusterConfig, RedisConfig, RedisSentinelConfig, RedisSingleConfig
 
 
 class AsyncRedisCache:
@@ -50,8 +42,8 @@ class AsyncRedisCache:
         pubsub_channel: Optional[str] = "cachine:invalidate",
         auto_publish_invalidations: bool = False,
     ) -> None:
-        # Typed client attribute
-        self._client: AsyncRedisClientProto
+        # Client attribute (runtime async redis client)
+        self._client: Any
         # Create appropriate client based on config type
         if isinstance(config, RedisSingleConfig):
             self._client = self._create_single_client(config)
@@ -175,7 +167,11 @@ class AsyncRedisCache:
             keys = []
         if keys:
             try:
-                await client.delete_many(*keys)
+                del_many = getattr(client, "delete_many", None)
+                if del_many is not None:
+                    await del_many(*keys)
+                else:
+                    await client.delete(*keys)
             except Exception:
                 for k in keys:
                     try:
@@ -376,7 +372,7 @@ class AsyncRedisCache:
                 members = await client.smembers(tkey)
             except Exception:
                 members = set()
-            for mk in members:
+            for mk in list(members):
                 key_name = mk.decode("utf-8") if isinstance(mk, bytes | bytearray) else mk
                 try:
                     await client.delete(key_name)
@@ -534,7 +530,7 @@ class AsyncRedisCache:
         await self.close()
 
     @staticmethod
-    def _create_single_client(config: RedisSingleConfig) -> Redis:
+    def _create_single_client(config: RedisSingleConfig) -> Any:
         """Create client for single Redis instance.
 
         Args:
@@ -543,7 +539,10 @@ class AsyncRedisCache:
         Returns:
             Any: AsyncRedisClient wrapper instance.
         """
-
+        try:
+            from redis.asyncio import Redis
+        except ImportError:
+            raise RuntimeError("redis.asyncio.Redis not available; install with: `pip install redis`")
         kwargs: dict[str, Any] = {
             "host": config.host,
             "port": int(config.port),
@@ -569,7 +568,7 @@ class AsyncRedisCache:
         return Redis(**kwargs)
 
     @staticmethod
-    def _create_cluster_client(config: RedisClusterConfig) -> RedisCluster:
+    def _create_cluster_client(config: RedisClusterConfig) -> Any:
         """Create client for Redis Cluster.
 
         Args:
@@ -581,52 +580,25 @@ class AsyncRedisCache:
         Raises:
             RuntimeError: If redis cluster client is not available.
         """
+        try:
+            from redis.asyncio.cluster import ClusterNode, RedisCluster
+        except Exception as e:  # pragma: no cover
+            raise RuntimeError("redis.asyncio not available; install with: `pip install redis`") from e
+
         # Convert nodes to dict format for redis-py
         nodes = [{"host": node.host, "port": node.port} for node in config.nodes]
 
         # Try different redis-py API versions
-        client = None
-        try:
-            try:
-                from redis.asyncio.cluster import ClusterNode as cluster_node_cls
-            except Exception:
-                cluster_node_cls = None  # type: ignore
+        client = RedisCluster(
+            startup_nodes=[ClusterNode(node["host"], node["port"]) for node in nodes],
+            username=config.username,
+            password=config.password, ssl=config.ssl,
 
-            if cluster_node_cls is not None:
-                cluster_nodes = [cluster_node_cls(str(n["host"]), int(n.get("port", 6379))) for n in nodes]
-                try:
-                    client = RedisCluster(nodes=cluster_nodes, username=config.username, password=config.password, ssl=config.ssl)  # type: ignore[call-arg]
-                except TypeError:
-                    client = RedisCluster(
-                        startup_nodes=[{"host": n["host"], "port": int(n.get("port", 6379))} for n in nodes],  # type: ignore[misc]
-                        username=config.username,
-                        password=config.password,
-                        ssl=config.ssl,
-                    )
-            else:
-                client = RedisCluster(  # type: ignore[unreachable]
-                    startup_nodes=[ClusterNode(**{"host": n["host"], "port": int(n.get("port", 6379))}) for n in nodes],
-                    username=config.username,
-                    password=config.password,
-                    ssl=config.ssl,
-                )
-        except Exception:
-            client = None
-
-        if client is None:
-            first = nodes[0]
-            client = RedisCluster(
-                host=str(first["host"]),
-                port=int(first.get("port", 6379)),
-                username=config.username,
-                password=config.password,
-                ssl=config.ssl,
-            )
-
+        )
         return client
 
     @staticmethod
-    def _create_sentinel_client(config: RedisSentinelConfig) -> Redis:
+    def _create_sentinel_client(config: RedisSentinelConfig) -> Any:
         """Create client for Redis Sentinel.
 
         Args:
@@ -638,6 +610,11 @@ class AsyncRedisCache:
         Raises:
             RuntimeError: If redis.asyncio.sentinel is not available.
         """
+        try:
+            from redis.asyncio.sentinel import Sentinel
+        except Exception as e:  # pragma: no cover
+            raise RuntimeError("redis.asyncio not available; install with: `pip install redis`") from e
+
         sentinel = Sentinel(list(config.sentinels), socket_timeout=2, ssl=config.ssl)
         return sentinel.master_for(
             config.service_name,

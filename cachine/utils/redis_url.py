@@ -350,11 +350,7 @@ def create_cache_from_url(url: str, **kwargs: Any) -> Any:
 
     Examples:
         >>> from cachine.serializers import JSONSerializer
-        >>> cache = create_cache_from_url(
-        ...     "redis://localhost:6379/0",
-        ...     namespace="myapp",
-        ...     serializer=JSONSerializer()
-        ... )
+        >>> cache = create_cache_from_url("redis://localhost:6379/0", namespace="myapp", serializer=JSONSerializer())
     """
     config = parse_redis_url(url)
 

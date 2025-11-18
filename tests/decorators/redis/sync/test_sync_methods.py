@@ -1,6 +1,5 @@
-from typing import Any
-
-from cachine import RedisCache, cached
+from cachine import RedisCache
+from cachine.decorators import cached
 from cachine.decorators.cached import KeyContext
 
 

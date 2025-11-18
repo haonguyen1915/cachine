@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from cachine import InMemoryCache, cached
+from cachine import InMemoryCache
+from cachine.decorators import cached
 
 
 def test_key_builder_accepts_string_template_for_positional() -> None:

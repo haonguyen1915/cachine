@@ -3,7 +3,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from cachine import InMemoryCache, cached
+from cachine import InMemoryCache
+from cachine.decorators import cached
 
 
 def test_key_builder_failure_logs_warning_and_falls_back(caplog: Any) -> None:

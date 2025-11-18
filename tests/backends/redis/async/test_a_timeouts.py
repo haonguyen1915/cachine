@@ -10,6 +10,7 @@ from cachine.backends.redis.async_ import AsyncRedisCache
 from cachine.backends.redis.sync import RedisCache
 from cachine.models.redis_config import RedisSingleConfig
 
+
 @pytest.mark.asyncio
 async def test_async_redis_socket_connect_timeout() -> None:
     """Test that async socket_connect_timeout is respected."""
@@ -24,7 +25,7 @@ async def test_async_redis_socket_connect_timeout() -> None:
 
     # Measure time to failure
     start = time.time()
-    with pytest.raises(Exception) as exc_info:
+    with pytest.raises(Exception) as exc_info:  # noqa: B017
         await cache.set("key", "value")
         print(f"Exception raised: {exc_info.value}")
     elapsed = time.time() - start
@@ -50,7 +51,7 @@ async def test_async_redis_socket_timeout_on_slow_operations() -> None:
 
     # Should timeout quickly
     start = time.time()
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         await cache.get("key")
     elapsed = time.time() - start
 
@@ -75,7 +76,7 @@ async def test_async_redis_retry_on_timeout_disabled() -> None:
 
     # Should fail on first attempt
     start = time.time()
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         await cache.set("key", "value")
     elapsed = time.time() - start
 

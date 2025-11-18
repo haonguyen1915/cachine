@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
-from cachine import RedisCache, cached
+from cachine import RedisCache
+from cachine.decorators import cached
 
 
 @pytest.mark.usefixtures("redis_cache")

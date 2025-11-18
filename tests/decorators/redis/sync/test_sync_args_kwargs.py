@@ -1,6 +1,7 @@
 from typing import Any
 
-from cachine import cached, RedisCache
+from cachine import RedisCache
+from cachine.decorators import cached
 
 
 def test_args_only_redis(redis_cache: RedisCache) -> None:

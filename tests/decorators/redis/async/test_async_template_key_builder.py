@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
-from cachine import AsyncRedisCache, cached
+from cachine import AsyncRedisCache
+from cachine.decorators import cached
 from cachine.utils.key_builder import template_key_builder
 
 

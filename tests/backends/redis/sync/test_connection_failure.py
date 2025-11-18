@@ -24,10 +24,10 @@ def test_sync_redis_connection_failure_on_invalid_host() -> None:
     cache = RedisCache(config, namespace="ut")
 
     # Operations should raise connection errors
-    with pytest.raises(Exception):  # ConnectionError, TimeoutError, etc.
+    with pytest.raises(Exception):  # noqa: B017  # ConnectionError, TimeoutError, etc.
         cache.set("key", "value")
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         cache.get("key")
 
 
@@ -45,10 +45,10 @@ def test_sync_redis_connection_failure_on_invalid_port() -> None:
     cache = RedisCache(config, namespace="ut")
 
     # Operations should raise connection errors
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         cache.set("key", "value")
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         cache.get("key")
 
 

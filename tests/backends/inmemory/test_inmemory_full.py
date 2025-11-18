@@ -92,9 +92,7 @@ def test_tags_invalidation_direct_and_strategy() -> None:
 
     import asyncio
 
-    asyncio.get_event_loop().run_until_complete(
-        inv.set("user:2", {"id": 2}, ttl=60, tags=["users", "user:2"])
-    )
+    asyncio.get_event_loop().run_until_complete(inv.set("user:2", {"id": 2}, ttl=60, tags=["users", "user:2"]))
     assert cache.get("user:2") == {"id": 2}
     asyncio.get_event_loop().run_until_complete(inv.invalidate_tag("users"))
     assert cache.get("user:2") is None

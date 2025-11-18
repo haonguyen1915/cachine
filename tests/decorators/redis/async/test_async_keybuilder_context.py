@@ -2,8 +2,8 @@ from typing import Any
 
 import pytest
 
-from cachine import AsyncRedisCache, cached
-
+from cachine import AsyncRedisCache
+from cachine.decorators import cached
 
 @pytest.mark.asyncio
 async def test_async_key_builder_receives_context(a_redis_cache: AsyncRedisCache) -> None:

@@ -22,10 +22,10 @@ async def test_async_redis_connection_failure_on_invalid_host() -> None:
     cache = AsyncRedisCache(config, namespace="ut")
 
     # Operations should raise connection errors
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         await cache.set("key", "value")
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         await cache.get("key")
 
     await cache.close()
@@ -45,10 +45,10 @@ async def test_async_redis_connection_failure_on_invalid_port() -> None:
     cache = AsyncRedisCache(config, namespace="ut")
 
     # Operations should raise connection errors
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         await cache.set("key", "value")
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         await cache.get("key")
 
     await cache.close()
