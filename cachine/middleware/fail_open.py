@@ -278,6 +278,7 @@ class AsyncFailOpenMiddleware(BaseMiddleware):
                 res = add_fn(key, tags)
                 try:
                     import inspect as _inspect
+
                     if _inspect.isawaitable(res):
                         await res
                 except Exception:

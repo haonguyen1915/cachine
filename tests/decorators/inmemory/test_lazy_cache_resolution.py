@@ -51,4 +51,3 @@ def test_lazy_cache_factory_returning_none_pass_through() -> None:
     assert n["calls"] == 2
     # Factory called once at first invocation
     assert calls == ["init"]
-

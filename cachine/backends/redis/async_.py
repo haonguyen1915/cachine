@@ -61,7 +61,7 @@ class AsyncRedisCache:
         self._auto_publish_invalidations = auto_publish_invalidations
 
     # Basic ops
-    async def get(self, key: str, default: Any = None, *, serializer: Any = None) -> Any:
+    async def get(self, key: str, default: Any = None, serializer: Any = None) -> Any:
         """Get a value by key.
 
         Args:
@@ -85,7 +85,7 @@ class AsyncRedisCache:
                 return raw
         return raw
 
-    async def set(self, key: str, value: Any, *, ttl: Optional[int | timedelta] = None, serializer: Any = None) -> None:
+    async def set(self, key: str, value: Any, ttl: Optional[int | timedelta] = None, serializer: Any = None) -> None:
         """Set a value by key.
 
         Args:
@@ -137,7 +137,7 @@ class AsyncRedisCache:
         except Exception:
             return bool(res)
 
-    async def clear(self, *, dangerously_clear_all: bool = False) -> None:
+    async def clear(self, dangerously_clear_all: bool = False) -> None:
         """Clear keys in namespace or flush DB.
 
         Args:
@@ -180,7 +180,7 @@ class AsyncRedisCache:
                         pass
 
     # Enrichment
-    async def get_or_set(self, key: str, factory: Any, *, ttl: Optional[int | timedelta] = None, jitter: Optional[int] = None) -> Any:  # pylint: disable=unused-argument
+    async def get_or_set(self, key: str, factory: Any, ttl: Optional[int | timedelta] = None, jitter: Optional[int] = None) -> Any:  # pylint: disable=unused-argument
         """Get or compute-and-set a value.
 
         Args:
@@ -203,7 +203,7 @@ class AsyncRedisCache:
         return computed
 
     # TTL management
-    async def expire(self, key: str, *, ttl: int | timedelta) -> bool:
+    async def expire(self, key: str, ttl: int | timedelta) -> bool:
         """Set a relative expiration.
 
         Args:
@@ -236,7 +236,7 @@ class AsyncRedisCache:
         ts = int(when.timestamp())
         return bool(await client.expireat(k, ts))
 
-    async def touch(self, key: str, *, ttl: Optional[int | timedelta] = None) -> bool:
+    async def touch(self, key: str, ttl: Optional[int | timedelta] = None) -> bool:
         """Refresh presence or set a new TTL.
 
         Args:
@@ -305,7 +305,7 @@ class AsyncRedisCache:
             return True
 
     # Counters
-    async def incr(self, key: str, *, delta: int = 1, ttl_on_create: Optional[int | timedelta] = None) -> int:
+    async def incr(self, key: str, delta: int = 1, ttl_on_create: Optional[int | timedelta] = None) -> int:
         """Increment an integer value by ``delta``.
 
         Args:
@@ -341,7 +341,7 @@ class AsyncRedisCache:
                     await client.expire(k, max(pexpire_ms // 1000, 1))
             return val
 
-    async def decr(self, key: str, *, delta: int = 1) -> int:
+    async def decr(self, key: str, delta: int = 1) -> int:
         """Decrement an integer value.
 
         Args:
@@ -354,7 +354,7 @@ class AsyncRedisCache:
         return await self.incr(key, delta=-int(delta))
 
     # Tags
-    async def invalidate_tags(self, tags: list[str], *, publish: Optional[bool] = None) -> int:
+    async def invalidate_tags(self, tags: list[str], publish: Optional[bool] = None) -> int:
         """Invalidate keys by tags.
 
         Args:
@@ -615,6 +615,7 @@ class AsyncRedisCache:
             kwargs["retry_on_timeout"] = True
         try:  # pragma: no cover
             import redis as _redis
+
             ver = getattr(_redis, "__version__", "")
             head = ver.split(".", maxsplit=1)[0] if ver else ""
             major = int(head) if head.isdigit() else None

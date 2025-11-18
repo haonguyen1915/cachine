@@ -78,6 +78,7 @@ quote-style = "double"
 disable = [
     "too-many-instance-attributes",
     "too-few-public-methods",
+    "too-many-public-methods",
     "too-many-return-statements",
     "too-many-locals",
     "too-many-arguments",
@@ -99,7 +100,7 @@ disable = [
     "cell-var-from-loop"
 ]
 reports = false
-max-branches = 20
+max-branches = 30
 output-format = "colorized"
 max-line-length = 140
 class-const-naming-style = "PascalCase"
@@ -123,6 +124,3 @@ disable_error_code = ["func-returns-value", "call-overload", "override"]
 plugins = ["pydantic.mypy"]
 exclude = []
 
-[[tool.mypy.overrides]]
-module = ["tests.*"]
-ignore_errors = true

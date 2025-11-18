@@ -21,4 +21,3 @@ def test_metrics_sync_hits_and_misses() -> None:
     assert 0.0 <= stats["hit_rate"] <= 1.0
     assert stats["errors"] == 0
     assert stats["avg_latency_ms"] >= 0.0
-

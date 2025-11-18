@@ -52,7 +52,7 @@ class InMemoryCache:
         self._key_to_tags: dict[str, set[str]] = {}
 
     # Basic ops
-    def get(self, key: str, default: Any = None, *, serializer: Any = None) -> Any:  # pylint: disable=unused-argument
+    def get(self, key: str, default: Any = None, serializer: Any = None) -> Any:  # pylint: disable=unused-argument
         """Get a value by key.
 
         Args:
@@ -73,7 +73,7 @@ class InMemoryCache:
             self._cleanup_if_expired(k)
             return default
 
-    def set(self, key: str, value: Any, *, ttl: Optional[int | timedelta] = None, serializer: Any = None) -> None:  # pylint: disable=unused-argument
+    def set(self, key: str, value: Any, ttl: Optional[int | timedelta] = None, serializer: Any = None) -> None:  # pylint: disable=unused-argument
         """Set a value by key.
 
         Args:
@@ -132,7 +132,7 @@ class InMemoryCache:
                 return False
             return k in self._store
 
-    def clear(self, *, dangerously_clear_all: bool = False) -> None:
+    def clear(self, dangerously_clear_all: bool = False) -> None:
         """Clear stored keys.
 
         Args:
@@ -160,7 +160,7 @@ class InMemoryCache:
                     self._policy = LRUEviction() if self._max_size else None
 
     # Enrichment
-    def get_or_set(self, key: str, factory: Any, *, ttl: Optional[int | timedelta] = None, jitter: Optional[int] = None) -> Any:  # pylint: disable=unused-argument
+    def get_or_set(self, key: str, factory: Any, ttl: Optional[int | timedelta] = None, jitter: Optional[int] = None) -> Any:  # pylint: disable=unused-argument
         """Get or compute-and-set a value.
 
         Args:
@@ -184,7 +184,7 @@ class InMemoryCache:
         return val
 
     # TTL management
-    def expire(self, key: str, *, ttl: int | timedelta) -> bool:
+    def expire(self, key: str, ttl: int | timedelta) -> bool:
         """Set a relative expiration.
 
         Args:
@@ -225,7 +225,7 @@ class InMemoryCache:
             self._ttl[k] = when
             return True
 
-    def touch(self, key: str, *, ttl: Optional[int | timedelta] = None) -> bool:
+    def touch(self, key: str, ttl: Optional[int | timedelta] = None) -> bool:
         """Refresh TTL or assert presence.
 
         Args:
@@ -288,7 +288,7 @@ class InMemoryCache:
             return had_ttl
 
     # Counters
-    def incr(self, key: str, *, delta: int = 1, ttl_on_create: Optional[int | timedelta] = None) -> int:
+    def incr(self, key: str, delta: int = 1, ttl_on_create: Optional[int | timedelta] = None) -> int:
         """Increment an integer value by ``delta``.
 
         Args:
@@ -311,7 +311,7 @@ class InMemoryCache:
                     self._ttl[k] = datetime.now(timezone.utc) + timedelta(seconds=seconds)
             return new_val
 
-    def decr(self, key: str, *, delta: int = 1) -> int:
+    def decr(self, key: str, delta: int = 1) -> int:
         """Decrement an integer value.
 
         Args:

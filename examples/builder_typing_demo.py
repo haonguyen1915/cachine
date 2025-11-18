@@ -7,6 +7,7 @@ This example shows that:
 
 Run with: python examples/builder_typing_demo.py
 """
+
 from __future__ import annotations
 
 from cachine import AsyncCacheBuilder, AsyncRedisCache, CacheBuilder, RedisCache
@@ -20,28 +21,20 @@ def type_annotation_demo() -> None:
     redis_cache = RedisCache(host="localhost", port=6379, db=0)
 
     # The return type is Cache, NOT MetricsMiddleware
-    cache: Cache = (
-        CacheBuilder.from_cache(redis_cache)
-        .add_middleware(MetricsMiddleware)
-        .build()
-    )
+    cache: Cache = CacheBuilder.from_cache(redis_cache).add_middleware(MetricsMiddleware).build()
 
     print(f"✓ Sync cache type: {type(cache).__name__}")
     print(f"✓ Implements Cache protocol: {isinstance(cache, Cache)}")
-    print(f"✓ Can use all Cache methods: set, get, delete, etc.\n")
+    print("✓ Can use all Cache methods: set, get, delete, etc.\n")
 
     # Example 2: Async builder with explicit AsyncCache type
     async_redis = AsyncRedisCache(host="localhost", port=6379, db=0)
 
-    cache_async: AsyncCache = (
-        AsyncCacheBuilder.from_cache(async_redis)
-        .add_middleware(AsyncMetricsMiddleware)
-        .build()
-    )
+    cache_async: AsyncCache = AsyncCacheBuilder.from_cache(async_redis).add_middleware(AsyncMetricsMiddleware).build()
 
     print(f"✓ Async cache type: {type(cache_async).__name__}")
     print(f"✓ Implements AsyncCache protocol: {isinstance(cache_async, AsyncCache)}")
-    print(f"✓ Can use all AsyncCache methods: set, get, delete, etc.\n")
+    print("✓ Can use all AsyncCache methods: set, get, delete, etc.\n")
 
 
 def multiple_middleware_demo() -> None:

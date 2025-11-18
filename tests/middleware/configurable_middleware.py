@@ -1,4 +1,5 @@
 """Example configurable middleware for testing builder pattern with configuration."""
+
 from __future__ import annotations
 
 from typing import Any

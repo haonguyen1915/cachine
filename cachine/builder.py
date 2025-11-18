@@ -1,22 +1,22 @@
 from __future__ import annotations
 
 import inspect
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional, Type, TypeVar, Union, cast
+from typing import Any, Optional, Union, cast
 
-from .core.types import AsyncCache, Cache, CacheLike
+from .core.types import AsyncCache, Cache
 from .factory import async_cache_from_url, cache_from_url
-
 
 CacheFactory = Callable[[], Cache]
 AsyncCacheFactory = Callable[[], AsyncCache]
 
 SyncMiddlewareSpec = Union[
-    Type[Any],  # class with signature __init__(cache, ...)
+    type[Any],  # class with signature __init__(cache, ...)
     Callable[[Cache], Cache],  # factory that accepts cache and returns wrapped cache
 ]
 AsyncMiddlewareSpec = Union[
-    Type[Any],  # class with signature __init__(cache, ...)
+    type[Any],  # class with signature __init__(cache, ...)
     Callable[[AsyncCache], AsyncCache],  # factory that accepts async cache and returns wrapped cache
 ]
 
@@ -45,7 +45,7 @@ class CacheBuilder:
     _middlewares: list[SyncMiddlewareSpec] = field(default_factory=list)
 
     @staticmethod
-    def from_url(url: str, **kwargs: Any) -> "CacheBuilder":
+    def from_url(url: str, **kwargs: Any) -> CacheBuilder:
         # Lazy factory to avoid early network/init
         def _factory() -> Cache:
             return cache_from_url(url, **kwargs)
@@ -53,12 +53,12 @@ class CacheBuilder:
         return CacheBuilder(_base_factory=_factory)
 
     @staticmethod
-    def from_cache(cache: Cache | CacheFactory) -> "CacheBuilder":
+    def from_cache(cache: Cache | CacheFactory) -> CacheBuilder:
         if callable(cache):
-            return CacheBuilder(_base_factory=cast(CacheFactory, cache))
-        return CacheBuilder(_base_instance=cast(Cache, cache))
+            return CacheBuilder(_base_factory=cache)
+        return CacheBuilder(_base_instance=cache)
 
-    def add_middleware(self, mw: SyncMiddlewareSpec) -> "CacheBuilder":
+    def add_middleware(self, mw: SyncMiddlewareSpec) -> CacheBuilder:
         """Add a middleware layer.
 
         Accepts either a middleware class (constructed with the wrapped cache)
@@ -86,9 +86,9 @@ class CacheBuilder:
         wrapped: Cache = base
         for spec in self._middlewares:
             if _is_middleware_class(spec):
-                wrapped = cast(Cache, cast(Type[Any], spec)(wrapped))
+                wrapped = spec(wrapped)
             else:
-                wrapped = cast(Cache, cast(Callable[[Cache], Cache], spec)(wrapped))
+                wrapped = spec(wrapped)
         return wrapped
 
     def as_factory(self) -> CacheFactory:
@@ -106,8 +106,8 @@ _ASYNC_MW_REGISTRY: dict[type, type] = {}
 def _register_default_async_middleware() -> None:
     # Lazy import to avoid import cycles and optional deps
     try:
-        from .middleware.metrics import AsyncMetricsMiddleware, MetricsMiddleware
         from .middleware.fail_open import AsyncFailOpenMiddleware, FailOpenMiddleware
+        from .middleware.metrics import AsyncMetricsMiddleware, MetricsMiddleware
 
         _ASYNC_MW_REGISTRY[MetricsMiddleware] = AsyncMetricsMiddleware
         _ASYNC_MW_REGISTRY[FailOpenMiddleware] = AsyncFailOpenMiddleware
@@ -127,19 +127,19 @@ class AsyncCacheBuilder:
     _middlewares: list[AsyncMiddlewareSpec] = field(default_factory=list)
 
     @staticmethod
-    def from_url(url: str, **kwargs: Any) -> "AsyncCacheBuilder":
+    def from_url(url: str, **kwargs: Any) -> AsyncCacheBuilder:
         def _factory() -> AsyncCache:
             return async_cache_from_url(url, **kwargs)
 
         return AsyncCacheBuilder(_base_factory=_factory)
 
     @staticmethod
-    def from_cache(cache: AsyncCache | AsyncCacheFactory) -> "AsyncCacheBuilder":
+    def from_cache(cache: AsyncCache | AsyncCacheFactory) -> AsyncCacheBuilder:
         if callable(cache):
-            return AsyncCacheBuilder(_base_factory=cast(AsyncCacheFactory, cache))
-        return AsyncCacheBuilder(_base_instance=cast(AsyncCache, cache))
+            return AsyncCacheBuilder(_base_factory=cache)
+        return AsyncCacheBuilder(_base_instance=cache)
 
-    def add_middleware(self, mw: AsyncMiddlewareSpec | SyncMiddlewareSpec) -> "AsyncCacheBuilder":
+    def add_middleware(self, mw: AsyncMiddlewareSpec | SyncMiddlewareSpec) -> AsyncCacheBuilder:
         """Add a middleware layer.
 
         - If ``mw`` is an async middleware class or factory, it is used as-is.
@@ -151,7 +151,7 @@ class AsyncCacheBuilder:
 
         spec: AsyncMiddlewareSpec
         if _is_middleware_class(mw):
-            mw_cls = cast(Type[Any], mw)
+            mw_cls = cast(type[Any], mw)
             # Map known sync classes to async equivalents
             mapped = _ASYNC_MW_REGISTRY.get(mw_cls)
             spec = cast(AsyncMiddlewareSpec, mapped or mw_cls)
@@ -179,9 +179,9 @@ class AsyncCacheBuilder:
         wrapped: AsyncCache = base
         for spec in self._middlewares:
             if _is_middleware_class(spec):
-                wrapped = cast(AsyncCache, cast(Type[Any], spec)(wrapped))
+                wrapped = spec(wrapped)
             else:
-                wrapped = cast(AsyncCache, cast(Callable[[AsyncCache], AsyncCache], spec)(wrapped))
+                wrapped = spec(wrapped)
         return wrapped
 
     def as_factory(self) -> AsyncCacheFactory:
@@ -197,4 +197,3 @@ __all__ = [
     "CacheBuilder",
     "AsyncCacheBuilder",
 ]
-

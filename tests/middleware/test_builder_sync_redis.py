@@ -15,4 +15,3 @@ def test_sync_builder_with_redis(redis_cache: RedisCache) -> None:
 
     stats = cache.get_stats()
     assert stats["hits"] == 1 and stats["misses"] == 1
-

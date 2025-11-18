@@ -1,20 +1,18 @@
 """Test cases for CacheBuilder with configurable middleware."""
+
 from __future__ import annotations
 
 import pytest
 
 from cachine import CacheBuilder, RedisCache
 from cachine.middleware import MetricsMiddleware
-
 from tests.middleware.configurable_middleware import ConfigurableMetricsMiddleware
 
 
 def test_builder_with_configured_middleware_factory(redis_cache: RedisCache) -> None:
     """Test builder with factory-style configured middleware."""
     cache = (
-        CacheBuilder.from_cache(redis_cache)
-        .add_middleware(ConfigurableMetricsMiddleware.create(namespace="my-app", enabled=True))
-        .build()
+        CacheBuilder.from_cache(redis_cache).add_middleware(ConfigurableMetricsMiddleware.create(namespace="my-app", enabled=True)).build()
     )
 
     # Test operations
@@ -82,9 +80,7 @@ def test_builder_with_multiple_configured_middlewares(redis_cache: RedisCache) -
 def test_builder_from_url_with_configured_middleware() -> None:
     """Test builder from URL with configured middleware."""
     cache = (
-        CacheBuilder.from_url("memory://")
-        .add_middleware(ConfigurableMetricsMiddleware.create(namespace="url-test", enabled=True))
-        .build()
+        CacheBuilder.from_url("memory://").add_middleware(ConfigurableMetricsMiddleware.create(namespace="url-test", enabled=True)).build()
     )
 
     # Test operations
@@ -122,9 +118,7 @@ def test_builder_chaining_multiple_configured_middlewares(redis_cache: RedisCach
 def test_builder_as_factory_with_configured_middleware(redis_cache: RedisCache) -> None:
     """Test that builder.as_factory() works with configured middleware."""
     factory = (
-        CacheBuilder.from_cache(redis_cache)
-        .add_middleware(ConfigurableMetricsMiddleware.create(namespace="factory-test"))
-        .as_factory()
+        CacheBuilder.from_cache(redis_cache).add_middleware(ConfigurableMetricsMiddleware.create(namespace="factory-test")).as_factory()
     )
 
     # Build cache from factory

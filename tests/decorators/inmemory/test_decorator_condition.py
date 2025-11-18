@@ -47,13 +47,13 @@ class TestConditionParameter:
         # Failed result - not cached
         result1 = api_call(-1)
         assert result1["success"] is False
-        result2 = api_call(-1)
+        _ = api_call(-1)
         assert calls["n"] == 2
 
         # Successful result - cached
         result3 = api_call(123)
         assert result3["success"] is True
-        result4 = api_call(123)
+        _ = api_call(123)
         assert calls["n"] == 3  # No new call for cached result
 
 

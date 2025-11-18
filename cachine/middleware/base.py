@@ -56,9 +56,7 @@ class SyncCacheMiddleware(BaseMiddleware):
         return self._cache.clear(dangerously_clear_all=dangerously_clear_all)
 
     # Enrichment
-    def get_or_set(
-        self, key: str, factory: Any, *, ttl: Optional[int | timedelta] = None, jitter: Optional[int] = None
-    ) -> Any:
+    def get_or_set(self, key: str, factory: Any, *, ttl: Optional[int | timedelta] = None, jitter: Optional[int] = None) -> Any:
         return self._cache.get_or_set(key, factory, ttl=ttl, jitter=jitter)
 
     # TTL management

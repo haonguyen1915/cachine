@@ -82,7 +82,7 @@ class TestDynamicTTL:
         assert calls["n"] == 1
 
         # Cache hit for regular user
-        result2 = get_user(123)
+        _ = get_user(123)
         assert calls["n"] == 1
 
         # Premium user - different cache key due to different args
@@ -91,7 +91,7 @@ class TestDynamicTTL:
         assert calls["n"] == 2
 
         # Cache hit for premium user
-        result4 = get_user(456, premium=True)
+        _ = get_user(456, premium=True)
         assert calls["n"] == 2
 
     def test_callable_ttl_complex_logic(self) -> None:
@@ -257,7 +257,7 @@ class TestDynamicTTLAsync:
         assert result1 == {"id": 123, "premium": False}
         assert calls["n"] == 1
 
-        result2 = await get_user_async(123)
+        _ = await get_user_async(123)
         assert calls["n"] == 2  # No caching, so increments
 
 

@@ -1,11 +1,11 @@
 """Test cases for AsyncCacheBuilder with configurable middleware."""
+
 from __future__ import annotations
 
 import pytest
 
 from cachine import AsyncCacheBuilder, AsyncRedisCache
 from cachine.middleware import AsyncMetricsMiddleware, MetricsMiddleware
-
 from tests.middleware.configurable_middleware import AsyncConfigurableMetricsMiddleware
 
 

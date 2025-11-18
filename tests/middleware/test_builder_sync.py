@@ -16,4 +16,3 @@ def test_sync_builder_from_cache_and_middleware() -> None:
     # Outer middleware is MetricsMiddleware with get_stats
     stats = cache.get_stats()
     assert stats["hits"] == 1 and stats["misses"] == 1
-

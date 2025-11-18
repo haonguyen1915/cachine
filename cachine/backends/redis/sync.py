@@ -62,7 +62,7 @@ class RedisCache:
         self._auto_publish_invalidations = auto_publish_invalidations
 
     # Basic ops (stubs)
-    def get(self, key: str, default: Any = None, *, serializer: Any = None) -> Any:
+    def get(self, key: str, default: Any = None, serializer: Any = None) -> Any:
         """Get a value by key.
 
         Args:
@@ -88,7 +88,7 @@ class RedisCache:
                 return raw
         return raw
 
-    def set(self, key: str, value: Any, *, ttl: Optional[int | timedelta] = None, serializer: Any = None) -> None:
+    def set(self, key: str, value: Any, ttl: Optional[int | timedelta] = None, serializer: Any = None) -> None:
         """Set a value by key.
 
         Args:
@@ -150,7 +150,7 @@ class RedisCache:
         except Exception:
             return bool(res)
 
-    def clear(self, *, dangerously_clear_all: bool = False) -> None:
+    def clear(self, dangerously_clear_all: bool = False) -> None:
         """Clear keys in the current namespace or flush the DB.
 
         Args:
@@ -194,7 +194,7 @@ class RedisCache:
                         pass
 
     # Enrichment
-    def get_or_set(self, key: str, factory: Any, *, ttl: Optional[int | timedelta] = None, jitter: Optional[int] = None) -> Any:  # pylint: disable=unused-argument
+    def get_or_set(self, key: str, factory: Any, ttl: Optional[int | timedelta] = None, jitter: Optional[int] = None) -> Any:  # pylint: disable=unused-argument
         """Get or compute-and-set a value.
 
         Args:
@@ -219,7 +219,7 @@ class RedisCache:
         return computed
 
     # TTL management
-    def expire(self, key: str, *, ttl: int | timedelta) -> bool:
+    def expire(self, key: str, ttl: int | timedelta) -> bool:
         """Set a relative expiration.
 
         Args:
@@ -254,7 +254,7 @@ class RedisCache:
         res = client.expireat(k, ts)
         return bool(res)
 
-    def touch(self, key: str, *, ttl: Optional[int | timedelta] = None) -> bool:
+    def touch(self, key: str, ttl: Optional[int | timedelta] = None) -> bool:
         """Refresh presence or set a new TTL.
 
         Args:
@@ -325,7 +325,7 @@ class RedisCache:
             return True
 
     # Counters
-    def incr(self, key: str, *, delta: int = 1, ttl_on_create: Optional[int | timedelta] = None) -> int:
+    def incr(self, key: str, delta: int = 1, ttl_on_create: Optional[int | timedelta] = None) -> int:
         """Increment an integer value by ``delta``.
 
         Args:
@@ -366,7 +366,7 @@ class RedisCache:
                     client.expire(k, max(ms // 1000, 1))
             return val
 
-    def decr(self, key: str, *, delta: int = 1) -> int:
+    def decr(self, key: str, delta: int = 1) -> int:
         """Decrement an integer value.
 
         Args:
@@ -379,7 +379,7 @@ class RedisCache:
         return self.incr(key, delta=-int(delta))
 
     # Tags
-    def invalidate_tags(self, tags: list[str], *, publish: Optional[bool] = None) -> int:
+    def invalidate_tags(self, tags: list[str], publish: Optional[bool] = None) -> int:
         """Invalidate keys by tags.
 
         Args:
@@ -583,12 +583,15 @@ class RedisCache:
         # Use configured socket_timeout when provided
         st = 2 if config.socket_timeout is None else float(config.socket_timeout)
         sentinel = Sentinel(list(config.sentinels), socket_timeout=st, ssl=config.ssl)
-        return cast(Any, sentinel.master_for(
-            config.service_name,
-            db=config.db,
-            password=config.password,
-            ssl=config.ssl,
-        ))
+        return cast(
+            Any,
+            sentinel.master_for(
+                config.service_name,
+                db=config.db,
+                password=config.password,
+                ssl=config.ssl,
+            ),
+        )
 
     # Tag helpers
     def add_tags(self, key: str, tags: list[str]) -> None:
