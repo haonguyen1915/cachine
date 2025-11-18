@@ -69,6 +69,7 @@ class _Singleflight:
 
 _sf = _Singleflight()
 _MISSING = object()
+_CACHE_UNRESOLVED = object()
 
 
 def _build_key(  # pylint: disable=too-many-branches,too-many-nested-blocks
@@ -242,6 +243,8 @@ def cached(
     Args:
         cache (CacheLike | Callable[..., CacheLike] | None): Cache instance implementing
             the sync or async interface, or a callable that returns such an instance.
+            If a callable is provided, it is resolved lazily on first function call
+            (not at import/decorator time) to avoid early initialization order issues.
         ttl (Callable[..., int | float] | int | float | None): Freshness period in seconds.
             Can be a static value (int/float) or a callable that receives the function's
             arguments and returns a dynamic TTL. Falls back to None on callable errors.
@@ -303,49 +306,28 @@ def cached(
         except Exception:
             sig = None
 
-        # Pass-through mode: when cache is None, do not attempt any caching.
-        # Simply call the wrapped function (sync or async) preserving metadata.
-        if cache is None:
-            if is_coro:
+        # Lazily resolve cache on first call to avoid early initialization.
+        resolved_cache: CacheLike | None | object = _CACHE_UNRESOLVED
+        _resolve_lock = threading.Lock()
 
-                @functools.wraps(fn)
-                async def _async_passthrough(*args: Any, **kwargs: Any) -> Any:
-                    return await fn(*args, **kwargs)
-
-                return _async_passthrough
-
-            @functools.wraps(fn)
-            def _sync_passthrough(*args: Any, **kwargs: Any) -> Any:
-                return fn(*args, **kwargs)
-
-            return _sync_passthrough
-
-        # Resolve callable cache to actual cache instance
-        resolved_cache: CacheLike | None
-        if callable(cache):
-            try:
-                resolved_cache = cache()
-            except Exception as e:
-                _logger.error("Failed to resolve callable cache for %r: %s; using pass-through mode", fn, e)
-                resolved_cache = None
-        else:
-            resolved_cache = cache
-
-        # If resolved cache is None, fall back to pass-through mode
-        if resolved_cache is None:
-            if is_coro:
-
-                @functools.wraps(fn)
-                async def _async_passthrough_resolved(*args: Any, **kwargs: Any) -> Any:
-                    return await fn(*args, **kwargs)
-
-                return _async_passthrough_resolved
-
-            @functools.wraps(fn)
-            def _sync_passthrough_resolved(*args: Any, **kwargs: Any) -> Any:
-                return fn(*args, **kwargs)
-
-            return _sync_passthrough_resolved
+        def _resolve_cache() -> CacheLike | None:
+            nonlocal resolved_cache
+            if resolved_cache is _CACHE_UNRESOLVED:
+                with _resolve_lock:
+                    if resolved_cache is _CACHE_UNRESOLVED:
+                        try:
+                            if cache is None:
+                                resolved_cache = None
+                            elif callable(cache):
+                                resolved_cache = cache()
+                            else:
+                                resolved_cache = cache
+                        except Exception as e:  # pragma: no cover - rare
+                            _logger.error(
+                                "Failed to resolve cache for %r: %s; falling back to pass-through", fn, e
+                            )
+                            resolved_cache = None
+            return cast(Optional[CacheLike], None) if resolved_cache is None else cast(CacheLike, resolved_cache)
 
         def _finalize_tags(result: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> list[str]:
             out: list[str] = []
@@ -388,7 +370,7 @@ def cached(
             Returns:
                 tuple[bool, Any, float | None]: ``(hit, value, fresh_until_ts)``.
             """
-            val = resolved_cache.get(key, default=_MISSING)
+            val = cast(CacheLike, resolved_cache).get(key, default=_MISSING)
             if val is _MISSING:
                 return False, None, None
             if isinstance(val, dict) and val.get("__cachine__") == 1 and "fu" in val:
@@ -405,7 +387,7 @@ def cached(
             Returns:
                 tuple[bool, Any, float | None]: ``(hit, value, fresh_until_ts)``.
             """
-            val = await resolved_cache.get(key, default=_MISSING)
+            val = await cast(CacheLike, resolved_cache).get(key, default=_MISSING)
             if val is _MISSING:
                 return False, None, None
             if isinstance(val, dict) and val.get("__cachine__") == 1 and "fu" in val:
@@ -526,6 +508,10 @@ def cached(
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:  # pylint: disable=too-many-branches
                 # Early predicate: optionally bypass cache entirely
                 if not _call_enabled_predicate(args, kwargs):
+                    return await fn(*args, **kwargs)
+                # Resolve cache lazily; if unavailable, pass through
+                rc = _resolve_cache()
+                if rc is None:
                     return await fn(*args, **kwargs)
                 key = _build_key(fn, key_builder, version, args, kwargs)
                 hit, value, fresh_until = await _aget_cached_entry(key)
@@ -656,6 +642,9 @@ def cached(
         @functools.wraps(fn)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             if not _call_enabled_predicate(args, kwargs):
+                return fn(*args, **kwargs)
+            rc = _resolve_cache()
+            if rc is None:
                 return fn(*args, **kwargs)
             key = _build_key(fn, key_builder, version, args, kwargs)
             hit, value, fresh_until = _get_cached_entry(key)
