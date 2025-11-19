@@ -1,3 +1,64 @@
+## v0.1.0 – 2025-11-19
+
+### Release Notes
+
+Version 0.1.0 introduces significant enhancements to caching and middleware functionality.
+
+### Highlights
+- Added support for dynamic TTL in cache decorators to improve cache management.
+- Introduced async metrics middleware for better performance monitoring.
+- Enhanced cache factory with URL support for more flexible configurations.
+- Implemented fail-open middleware to ensure resilience during connection failures.
+- Added Redis client timeout options to improve reliability in network operations.
+
+### Features
+
+- feat: add TTL support for tag associations (b1c07bb)
+- feat: add fluent cache builder for middleware (88c83f6)
+- feat: add async metrics middleware (a1de9ab)
+- feat: add dynamic TTL support to cached decorator (bdd656f)
+- feat: add enabled predicate to cached decorator (ec162cc)
+- feat: add sync cache middleware implementation (f698411)
+- feat: enhance cache factory with URL support (459213b)
+- feat: add connection failure tests for Redis (9054734)
+- feat: add Redis URL parsing utilities (100872b)
+- feat: add fail-open middleware for resilience and fix lint (0771200)
+- feat: add CacheLike type for caching decorators (0e507a4)
+- feat: add Redis client timeout options (24242d8)
+
+### Refactoring
+
+- refactor: refactor imports in decorators and models (dc98a55)
+- refactor: refactor cache method signatures for clarity (625c89e)
+- refactor: improve logging in cached decorator (d18600b)
+- refactor: refactor cached decorator for type clarity (33f1e7e)
+- refactor: refactor cache method signatures for clarity (df4f60f)
+- refactor: refactor cached decorator for lazy cache resolution (5e6291d)
+- refactor: refactor cached decorator for callable cache (5018952)
+- refactor: refactor Redis cache implementation (587beea)
+- refactor: refactor cache decorators for clarity (4f10f66)
+
+### Chores
+
+- chore: update releaser (a93f072)
+- chore: remove AGENT (df59b76)
+- chore: refactor code base (f78e768)
+- chore: remove env file (fcb3285)
+- chore: update gitignore (04db0f8)
+- chore: refactor redis client (0f8f0e9)
+- chore: update py project config (0f3cef2)
+- chore: update ruleset run lint (43ceab6)
+- chore: add CI lint and publish (e5afad5)
+
+### Other
+
+- tmp (b0b3fe5)
+- tmp (27c8489)
+
+**Contributors:** @haonguyen
+
+**Compare changes:** [v0.1.0-rc.1...v0.1.0](https://github.com/haonguyen1915/cachine.git/-/compare/v0.1.0-rc.1...v0.1.0)
+
 # Changelog
 
 ---
