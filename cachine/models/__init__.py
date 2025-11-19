@@ -1,5 +1,6 @@
 """Data models for cachine."""
 
+from .common import KeyContext
 from .redis_config import (
     RedisClusterConfig,
     RedisConfig,
@@ -14,4 +15,5 @@ __all__ = [
     "RedisNodeConfig",
     "RedisClusterConfig",
     "RedisSentinelConfig",
+    "KeyContext"
 ]
