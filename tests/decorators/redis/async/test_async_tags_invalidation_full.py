@@ -17,6 +17,7 @@ async def test_async_cache_with_tags(a_redis_cache: AsyncRedisCache) -> None:
         stale_ttl=30,
         tags=lambda uid: ["users", f"user:{uid}"],
         tags_from_result=lambda u: [f"role:{u['role']}"] if u else [],
+        tag_ttl=30,
     )
     async def get_user(uid: int) -> dict[str, Any]:
         calls["n"] += 1

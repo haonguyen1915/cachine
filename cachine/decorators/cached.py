@@ -502,19 +502,23 @@ def cached(
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:  # pylint: disable=too-many-branches
                 # Early predicate: optionally bypass cache entirely
                 if not _call_enabled_predicate(args, kwargs):
+                    _logger.debug("Cache SKIP (disabled) for %s", fn.__qualname__)
                     return await fn(*args, **kwargs)
                 # Resolve cache lazily; if unavailable, pass through
                 rc = _resolve_cache()
                 if rc is None:
+                    _logger.debug("Cache SKIP (no cache) for %s", fn.__qualname__)
                     return await fn(*args, **kwargs)
                 key = build_cache_key(fn, key_builder, version, args, kwargs)
                 hit, value, fresh_until = await _aget_cached_entry(key)
                 now = time.time()
                 if hit:
                     if fresh_until is None or now <= fresh_until:
+                        _logger.debug("Cache HIT (fresh) for %s, key=%s", fn.__name__, key)
                         return value
                     # stale
                     if stale_ttl is not None and now <= fresh_until + int(stale_ttl):
+                        _logger.debug("Cache HIT (stale, refreshing) for %s, key=%s", fn.__name__, key)
                         # kick off background refresh if not already running
                         if singleflight:
                             leader, ev = _sf.acquire(key)
@@ -569,6 +573,7 @@ def cached(
                                     _sf.release(key)
                         return value
                     # fully expired -> compute
+                _logger.debug("Cache MISS for %s, key=%s", fn.__name__, key)
                 if singleflight:
                     leader, ev = _sf.acquire(key)
                     if not leader:
@@ -636,17 +641,21 @@ def cached(
         @functools.wraps(fn)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             if not _call_enabled_predicate(args, kwargs):
+                _logger.debug("Cache SKIP (disabled) for %s", fn.__name__)
                 return fn(*args, **kwargs)
             rc = _resolve_cache()
             if rc is None:
+                _logger.debug("Cache SKIP (no cache) for %s", fn.__name__)
                 return fn(*args, **kwargs)
             key = build_cache_key(fn, key_builder, version, args, kwargs)
             hit, value, fresh_until = _get_cached_entry(key)
             now = time.time()
             if hit:
                 if fresh_until is None or now <= fresh_until:
+                    _logger.debug("Cache HIT (fresh) for %s, key=%s", fn.__name__, key)
                     return value
                 if stale_ttl is not None and now <= fresh_until + int(stale_ttl):
+                    _logger.debug("Cache HIT (stale, refreshing) for %s, key=%s", fn.__name__, key)
                     # trigger background refresh
                     if singleflight:
                         # attempt leader acquire for background refresh
@@ -654,6 +663,7 @@ def cached(
                         t.start()
                     return value
                 # fully expired -> compute
+            _logger.debug("Cache MISS for %s, key=%s", fn.__name__, key)
             if singleflight:
                 leader, ev = _sf.acquire(key)
                 if not leader:

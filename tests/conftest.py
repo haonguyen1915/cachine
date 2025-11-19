@@ -85,7 +85,7 @@ async def a_redis_cache() -> AsyncRedisCache:
     else:
         raise ValueError(f"Invalid REDIS_MODE: {REDIS_MODE}")
 
-    ns = f"atest"
+    ns = f"atest:{uuid.uuid4().hex}"
     cache = AsyncRedisCache(cfg_obj, namespace=ns, serializer=JSONSerializer())
     try:
         yield cache
