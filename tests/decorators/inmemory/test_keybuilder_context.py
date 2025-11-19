@@ -1,7 +1,6 @@
 from cachine import InMemoryCache
 from cachine.decorators import cached
-from cachine.decorators.cached import KeyContext
-
+from cachine.models import KeyContext
 
 def test_key_builder_receives_context_inmemory() -> None:
     cache = InMemoryCache()

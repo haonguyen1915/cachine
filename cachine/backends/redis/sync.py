@@ -392,7 +392,7 @@ class RedisCache:
         client = self._require_client()
         deleted_keys: set[str] = set()
         for tag in tags:
-            tkey = f"{self._ns}tag::{tag}"
+            tkey = f"{self._ns}tag:{tag}"
             try:
                 members = client.smembers(tkey)
             except Exception:
@@ -611,7 +611,7 @@ class RedisCache:
         ttl_seconds = to_seconds(ttl) if ttl is not None else None
 
         for tag in tags:
-            tkey = f"{self._ns}tag::{tag}"
+            tkey = f"{self._ns}tag:{tag}"
             try:
                 client.sadd(tkey, k)
                 # Set TTL on tag set if provided

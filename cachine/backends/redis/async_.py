@@ -368,7 +368,7 @@ class AsyncRedisCache:
         client = self._client
         deleted = 0
         for tag in tags:
-            tkey = f"{self._ns}tag::{tag}"
+            tkey = f"{self._ns}tag:{tag}"
             try:
                 members = await client.smembers(tkey)
             except Exception:

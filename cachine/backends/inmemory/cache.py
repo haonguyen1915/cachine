@@ -347,12 +347,14 @@ class InMemoryCache:
         return removed
 
     # Tag assignment for decorator/strategies
-    def add_tags(self, key: str, tags: list[str]) -> None:
+    def add_tags(self, key: str, tags: list[str], ttl: Optional[int | timedelta] = None) -> None:  # pylint: disable=unused-argument
         """Associate tags with a key for later invalidation.
 
         Args:
             key (str): Stored cache key.
             tags (list[str]): Tags to associate.
+            ttl (int | timedelta | None): Ignored for in‑memory cache; present
+                for interface parity with other backends.
 
         Returns:
             None

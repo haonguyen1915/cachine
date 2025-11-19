@@ -32,7 +32,7 @@ def test_callable_cache_basic() -> None:
 
 
 def test_callable_cache_deferred_creation() -> None:
-    """Test that callable cache is resolved during decoration time."""
+    """Test that callable cache is resolved lazily on first use."""
     cache_created = {"flag": False}
     cache_instance = None
     calls = {"n": 0}
@@ -46,18 +46,21 @@ def test_callable_cache_deferred_creation() -> None:
     # Cache should not be created yet
     assert cache_created["flag"] is False
 
-    # Decorator application resolves the callable cache immediately
+    # Decorator application should *not* resolve the callable cache yet
+    # (lazy resolution to avoid early initialization issues).
     @cached(create_cache, ttl=60)
     def multiply(a: int, b: int) -> int:
         calls["n"] += 1
         return a * b
 
-    # Cache is created during decoration, not lazily
+    # Cache is still not created until the first call
+    assert cache_created["flag"] is False
+    assert cache_instance is None
+
+    # First call should create the cache and cache the result
+    result = multiply(3, 4)
     assert cache_created["flag"] is True
     assert cache_instance is not None
-
-    # Verify caching works
-    result = multiply(3, 4)
     assert result == 12
     assert calls["n"] == 1
 
