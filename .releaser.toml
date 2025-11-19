@@ -39,7 +39,7 @@ mode = "auto"
 
 [release.auto_gen_notes]
 # AI-powered release notes generation
-enabled = false
+enabled = true
 include_diff = false
 always_diff_types = []
 max_commits = 200
