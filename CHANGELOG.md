@@ -1,3 +1,21 @@
+## v0.2.0 – 2025-11-19
+
+### Release Notes
+
+Version 0.2.0 enhances performance and efficiency with improved caching mechanisms.
+
+### Highlights
+- Refactored cache handling in decorators to optimize performance and reduce latency.
+- Enhanced overall application responsiveness through improved caching strategies.
+
+### Refactoring
+
+- refactor: improve cache handling in decorators (003e1c2)
+
+**Contributors:** @haonguyen
+
+**Compare changes:** [v0.1.0...v0.2.0](https://github.com/haonguyen1915/cachine.git/-/compare/v0.1.0...v0.2.0)
+
 ## v0.1.0 – 2025-11-19
 
 ### Release Notes
