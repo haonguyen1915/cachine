@@ -362,7 +362,10 @@ def cached(
             Returns:
                 tuple[bool, Any, float | None]: ``(hit, value, fresh_until_ts)``.
             """
-            val = cast(CacheLike, resolved_cache).get(key, default=_MISSING)
+            rc_local: CacheLike | None = _resolve_cache()
+            if rc_local is None:
+                return False, None, None
+            val = rc_local.get(key, default=_MISSING)
             if val is _MISSING:
                 return False, None, None
             if isinstance(val, dict) and val.get("__cachine__") == 1 and "fu" in val:
@@ -379,7 +382,13 @@ def cached(
             Returns:
                 tuple[bool, Any, float | None]: ``(hit, value, fresh_until_ts)``.
             """
-            val = await cast(CacheLike, resolved_cache).get(key, default=_MISSING)
+            rc_local: CacheLike | None = _resolve_cache()
+            if rc_local is None:
+                return False, None, None
+            # Support both async and sync cache interfaces
+            val = rc_local.get(key, default=_MISSING)
+            if inspect.isawaitable(val):
+                val = await cast(Any, val)
             if val is _MISSING:
                 return False, None, None
             if isinstance(val, dict) and val.get("__cachine__") == 1 and "fu" in val:

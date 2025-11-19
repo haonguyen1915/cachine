@@ -143,8 +143,7 @@ def build_cache_key(
 
         if key is not None:
             return f"{key}|v:{version}" if version else key
-        else:
-            _logger.warning(f"Falling back to hash-based cache key for function {func_name}")
+        _logger.warning(f"Falling back to hash-based cache key for function {func_name}")
 
         # Template failed → continue to hash fallback
 
@@ -167,8 +166,7 @@ def build_cache_key(
 
         if key is not None:
             return f"{key}|v:{version}" if version else key
-        else:
-            _logger.warning(f"Falling back to hash-based cache key for function {func_name}")
+        _logger.warning(f"Falling back to hash-based cache key for function {func_name}")
 
         # Callable builder failed → continue to hash fallback
 
@@ -202,7 +200,7 @@ def template_key_builder(template: str) -> Callable[..., Optional[str]]:
 
     placeholders = PLACEHOLDER_RE.findall(template)
 
-    def build(*call_args, **call_kwargs) -> Optional[str]:
+    def build(*call_args: Any, **call_kwargs: Any) -> Optional[str]:
         """
         Gọi theo một trong hai dạng:
             tmpl(ctx, *args, **kwargs)

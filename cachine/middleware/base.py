@@ -86,7 +86,7 @@ class SyncCacheMiddleware(BaseMiddleware):
     def add_tags(self, key: str, tags: list[str], ttl: Optional[int | timedelta] = None) -> None:
         add_tags_fn = getattr(self._cache, "add_tags", None)
         if add_tags_fn is not None:
-            return add_tags_fn(key, tags, ttl=ttl)
+            add_tags_fn(key, tags, ttl=ttl)
 
     def invalidate_tags(self, tags: list[str]) -> int:
         inv = getattr(self._cache, "invalidate_tags", None)
