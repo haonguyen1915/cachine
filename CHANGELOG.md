@@ -1,3 +1,26 @@
+## v0.1.1-rc.1 – 2025-11-19
+
+### Release Notes
+
+This release focuses on improving code structure and efficiency.
+
+### Highlights
+- Simplified model exports for easier access and improved maintainability.
+- Enhanced cache methods for better tag handling, boosting performance and reliability.
+
+### Refactoring
+
+- refactor: simplify model exports in __init__.py (6327614)
+- refactor: update tag handling in cache methods (d600842)
+
+### Chores
+
+- chore: update config (3bd85a3)
+
+**Contributors:** @haonguyen
+
+**Compare changes:** [v0.2.0...v0.1.1-rc.1](https://github.com/haonguyen1915/cachine.git/-/compare/v0.2.0...v0.1.1-rc.1)
+
 ## v0.2.0 – 2025-11-19
 
 ### Release Notes
