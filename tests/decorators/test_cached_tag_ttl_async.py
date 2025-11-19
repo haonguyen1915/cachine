@@ -74,7 +74,7 @@ async def test_async_cached_tag_ttl_shorter_than_value(a_redis_cache: AsyncRedis
         return {"key": key, "data": "value"}
 
     # Cache the value
-    result = await get_data("test")
+    _ = await get_data("test")
     assert call_count == 1
 
     # Wait for tag to expire
@@ -85,7 +85,7 @@ async def test_async_cached_tag_ttl_shorter_than_value(a_redis_cache: AsyncRedis
     assert count == 0
 
     # But the cached value should still exist
-    result = await get_data("test")
+    _ = await get_data("test")
     assert call_count == 1  # Cache hit
 
 

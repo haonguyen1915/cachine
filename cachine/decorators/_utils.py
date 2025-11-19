@@ -4,7 +4,8 @@ import json
 import logging
 import re
 import uuid
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any, Optional
 
 from cachine.models.common import KeyContext
 
@@ -63,6 +64,7 @@ def normalize_value(v: Any) -> Any:
 # Hash Builder
 # ================================================================
 
+
 def hash_components(func_name: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> str:
     """Compute a deterministic, compact SHA256 hash from normalized arguments."""
     payload = json.dumps(
@@ -80,6 +82,7 @@ def hash_components(func_name: str, args: tuple[Any, ...], kwargs: dict[str, Any
 # ================================================================
 # Unified Key Builder (public)
 # ================================================================
+
 
 def build_cache_key(
     fn: Callable[..., Any],

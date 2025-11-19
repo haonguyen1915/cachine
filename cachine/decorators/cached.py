@@ -6,22 +6,21 @@ import logging
 import random
 import threading
 import time
-import uuid
 from collections.abc import Callable
 from datetime import timedelta
-from typing import Any, NamedTuple, Optional, Union, cast
+from typing import Any, Optional, Union, cast
+
 from cachine.core.types import AsyncCache, Cache, CacheLike
-from cachine.models.common import KeyContext
+
 # from cachine.utils.key_builder import default_key_builder, template_key_builder
 from ._utils import build_cache_key
+
 # Type aliases for cache factories
 CacheFactory = Callable[[], Cache]
 AsyncCacheFactory = Callable[[], AsyncCache]
 AnyCacheFactory = Union[CacheFactory, AsyncCacheFactory, Callable[[], CacheLike]]
 
 _logger = logging.getLogger(__name__)
-
-
 
 
 class _Singleflight:

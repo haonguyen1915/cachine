@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from cachine.serializers import Serializer
+
 from .core.types import AsyncCache, Cache
 from .exceptions import RedisURLParseError
 
 
-def cache_from_url(url: str, **kwargs: Any) -> Cache:
+def cache_from_url(url: str, namespace: str | None = None, serializer: Serializer | None = None, **kwargs: Any) -> Cache:
     """Create a synchronous cache instance from a URL.
 
     Supported URL schemes:
@@ -18,9 +20,9 @@ def cache_from_url(url: str, **kwargs: Any) -> Cache:
 
     Args:
         url: Connection URL string
+        namespace: Cache key namespace
+        serializer: Custom serializer instance
         **kwargs: Additional arguments passed to cache constructor:
-            - namespace: Cache key namespace
-            - serializer: Custom serializer instance
             - For Redis: pubsub_channel, auto_publish_invalidations, etc.
 
     Returns:
@@ -54,10 +56,6 @@ def cache_from_url(url: str, **kwargs: Any) -> Cache:
 
         config = parse_redis_url(url)
 
-        # Extract cache constructor args
-        namespace = kwargs.pop("namespace", None)
-        serializer = kwargs.pop("serializer", None)
-
         # Warn about unknown kwargs
         if kwargs:
             import warnings
@@ -72,7 +70,7 @@ def cache_from_url(url: str, **kwargs: Any) -> Cache:
     )
 
 
-def async_cache_from_url(url: str, **kwargs: Any) -> AsyncCache:
+def async_cache_from_url(url: str, namespace: str | None = None, serializer: Serializer | None = None, **kwargs: Any) -> AsyncCache:
     """Create an asynchronous cache instance from a URL.
 
     Supported URL schemes:
@@ -82,9 +80,9 @@ def async_cache_from_url(url: str, **kwargs: Any) -> AsyncCache:
 
     Args:
         url: Connection URL string
+        namespace: Cache key namespace
+        serializer: Custom serializer instance
         **kwargs: Additional arguments passed to cache constructor:
-            - namespace: Cache key namespace
-            - serializer: Custom serializer instance
             - For Redis: pubsub_channel, auto_publish_invalidations, etc.
 
     Returns:
@@ -111,10 +109,6 @@ def async_cache_from_url(url: str, **kwargs: Any) -> AsyncCache:
         from .utils.redis_url import parse_redis_url
 
         config = parse_redis_url(url)
-
-        # Extract cache constructor args
-        namespace = kwargs.pop("namespace", None)
-        serializer = kwargs.pop("serializer", None)
 
         # Warn about unknown kwargs
         if kwargs:

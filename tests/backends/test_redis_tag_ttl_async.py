@@ -174,7 +174,7 @@ async def test_tag_ttl_zero_or_negative(a_redis_cache: AsyncRedisCache):
     await a_redis_cache.add_tags(key, tags, ttl=0)
 
     # Just verify no errors are raised
-    count = await a_redis_cache.invalidate_tags(tags)
+    _ = await a_redis_cache.invalidate_tags(tags)
     # Don't assert specific count as behavior may vary
 
 

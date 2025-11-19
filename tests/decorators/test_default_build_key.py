@@ -9,6 +9,7 @@ _logger = logging.getLogger(__name__)
 # Helpers
 # -------------------------------------------------------------
 
+
 def build(fn, *args, key_builder=None, version=None, **kwargs):
     key = build_cache_key(
         fn=fn,
@@ -24,6 +25,7 @@ def build(fn, *args, key_builder=None, version=None, **kwargs):
 # -------------------------------------------------------------
 # Test Case 1 — Plain function
 # -------------------------------------------------------------
+
 
 def test_build_key_plain_function():
     def add(x, y, __use_cache: bool = True):
@@ -49,6 +51,7 @@ def test_build_key_plain_function():
 # Test Case 2 — Instance method
 # -------------------------------------------------------------
 
+
 class User:
     def __init__(self, uid):
         self.uid = uid
@@ -72,6 +75,7 @@ def test_build_key_instance_method():
 # Test Case 4 — classmethod
 # -------------------------------------------------------------
 
+
 class A:
     @classmethod
     def make(cls, x):
@@ -89,6 +93,7 @@ def test_build_key_classmethod():
 # -------------------------------------------------------------
 # Test Case 5 — staticmethod
 # -------------------------------------------------------------
+
 
 class S:
     @staticmethod
@@ -112,6 +117,7 @@ def test_build_key_staticmethod():
 # Test Case 6 — keyword-only args
 # -------------------------------------------------------------
 
+
 def kw_only(a, *, uid):
     return a + uid
 
@@ -129,6 +135,7 @@ def test_build_key_keyword_only():
 # -------------------------------------------------------------
 # Test Case 7 — template string key_builder
 # -------------------------------------------------------------
+
 
 def get_user(uid, *, full=False):
     return uid
@@ -157,6 +164,7 @@ def test_build_key_template_builder():
 # Test Case 8 — key_builder callable
 # -------------------------------------------------------------
 
+
 def test_build_key_callable_key_builder():
     def custom_builder(ctx, uid, full=False):
         return f"U:{uid}:F:{full}:FN:{ctx.qualname}"
@@ -176,6 +184,7 @@ def test_build_key_callable_key_builder():
 # Test Case 9 — version appended
 # -------------------------------------------------------------
 
+
 def test_build_key_with_version():
     k = build(get_user, 1, full=True, version="v2")
     assert k.endswith("|v:v2")
@@ -185,6 +194,7 @@ def test_build_key_with_version():
 # Test Case 10 — Bound instance uniqueness (auto UUID)
 # -------------------------------------------------------------
 
+
 class Auto:
     def fn(self, x):
         return x
@@ -193,6 +203,7 @@ class Auto:
 # -------------------------------------------------------------
 # Test Case 11 — Ensure qualname dotted functions work
 # -------------------------------------------------------------
+
 
 def outer():
     def inner(a):
@@ -214,4 +225,4 @@ def test_build_key_with_class_in_args():
     def fn(x):
         return x
 
-    k = build(fn, Dummy)  # class passed as positional arg
+    _ = build(fn, Dummy)  # class passed as positional arg

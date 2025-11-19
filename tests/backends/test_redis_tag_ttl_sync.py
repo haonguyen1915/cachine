@@ -172,5 +172,5 @@ def test_tag_ttl_zero_or_negative(redis_cache: RedisCache):
     # The implementation should handle this gracefully
     # Note: Redis expire with 0 might delete immediately,
     # so we just verify no errors are raised
-    count = redis_cache.invalidate_tags(tags)
+    _ = redis_cache.invalidate_tags(tags)
     # Don't assert specific count as behavior may vary

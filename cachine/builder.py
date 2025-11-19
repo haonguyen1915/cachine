@@ -5,6 +5,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Optional, Union, cast
 
+from cachine.serializers.base import Serializer
+
 from .core.types import AsyncCache, Cache
 from .factory import async_cache_from_url, cache_from_url
 
@@ -45,10 +47,31 @@ class CacheBuilder:
     _middlewares: list[SyncMiddlewareSpec] = field(default_factory=list)
 
     @staticmethod
-    def from_url(url: str, **kwargs: Any) -> CacheBuilder:
+    def from_url(url: str, namespace: str | None = None, serializer: Serializer | None = None, **kwargs: Any) -> CacheBuilder:
+        """Create a synchronous cache instance from a URL.
+
+        Supported URL schemes:
+            - redis:// or rediss:// - Single Redis instance
+            - redis://host1:port1,host2:port2 - Redis Cluster
+            - redis+sentinel:// or rediss+sentinel:// - Redis Sentinel
+
+        Args:
+            url: Connection URL string
+            namespace: Cache key namespace
+            serializer: Custom serializer instance
+            **kwargs: Additional arguments passed to cache constructor:
+                - For Redis: pubsub_channel, auto_publish_invalidations, etc.
+
+        Returns:
+            Synchronous Cache instance
+
+        Raises:
+            RedisURLParseError: If URL scheme is not supported or URL is invalid
+        """
+
         # Lazy factory to avoid early network/init
         def _factory() -> Cache:
-            return cache_from_url(url, **kwargs)
+            return cache_from_url(url, namespace=namespace, serializer=serializer, **kwargs)
 
         return CacheBuilder(_base_factory=_factory)
 
@@ -127,9 +150,24 @@ class AsyncCacheBuilder:
     _middlewares: list[AsyncMiddlewareSpec] = field(default_factory=list)
 
     @staticmethod
-    def from_url(url: str, **kwargs: Any) -> AsyncCacheBuilder:
+    def from_url(url: str, namespace: str | None = None, serializer: Serializer | None = None, **kwargs: Any) -> AsyncCacheBuilder:
+        """Create an asynchronous cache instance from a URL.
+
+        Supported URL schemes:
+            - redis:// or rediss:// - Single Redis instance
+            - redis://host1:port1,host2:port2 - Redis Cluster
+            - redis+sentinel:// or rediss+sentinel:// - Redis Sentinel
+
+        Args:
+            url: Connection URL string
+            namespace: Cache key namespace
+            serializer: Custom serializer instance
+            **kwargs: Additional arguments passed to cache constructor:
+                - For Redis: pubsub_channel, auto_publish_invalidations, etc.
+        """
+
         def _factory() -> AsyncCache:
-            return async_cache_from_url(url, **kwargs)
+            return async_cache_from_url(url, namespace=namespace, serializer=serializer, **kwargs)
 
         return AsyncCacheBuilder(_base_factory=_factory)
 

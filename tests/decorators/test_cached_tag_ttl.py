@@ -2,8 +2,6 @@
 
 import time
 
-import pytest
-
 from cachine.backends.redis.sync import RedisCache
 from cachine.decorators.cached import cached
 
@@ -70,7 +68,7 @@ def test_cached_tag_ttl_shorter_than_value(redis_cache: RedisCache) -> None:
         return {"key": key, "data": "value"}
 
     # Cache the value
-    result = get_data("test")
+    _ = get_data("test")
     assert call_count == 1
 
     # Wait for tag to expire
@@ -81,7 +79,7 @@ def test_cached_tag_ttl_shorter_than_value(redis_cache: RedisCache) -> None:
     assert count == 0
 
     # But the cached value should still exist
-    result = get_data("test")
+    _ = get_data("test")
     assert call_count == 1  # Cache hit
 
 
