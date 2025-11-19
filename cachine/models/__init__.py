@@ -9,11 +9,4 @@ from .redis_config import (
     RedisSingleConfig,
 )
 
-__all__ = [
-    "RedisConfig",
-    "RedisSingleConfig",
-    "RedisNodeConfig",
-    "RedisClusterConfig",
-    "RedisSentinelConfig",
-    "KeyContext"
-]
+__all__ = ["RedisConfig", "RedisSingleConfig", "RedisNodeConfig", "RedisClusterConfig", "RedisSentinelConfig", "KeyContext"]

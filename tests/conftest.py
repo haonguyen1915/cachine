@@ -1,5 +1,4 @@
 import os
-import uuid
 from typing import Any
 
 import pytest
@@ -61,7 +60,7 @@ def redis_cache() -> RedisCache:
         cfg_obj: RedisSentinelConfig = parse_redis_url(REDIS_URL)
     else:
         raise ValueError(f"Invalid REDIS_MODE: {REDIS_MODE}")
-    ns = f"test"
+    ns = "test"
     cache = RedisCache(cfg_obj, namespace=ns, serializer=JSONSerializer())
     try:
         yield cache
@@ -85,7 +84,7 @@ async def a_redis_cache() -> AsyncRedisCache:
     else:
         raise ValueError(f"Invalid REDIS_MODE: {REDIS_MODE}")
 
-    ns = f"atest"
+    ns = "atest"
     cache = AsyncRedisCache(cfg_obj, namespace=ns, serializer=JSONSerializer())
     try:
         yield cache

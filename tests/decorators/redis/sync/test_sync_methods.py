@@ -2,6 +2,7 @@ from cachine import RedisCache
 from cachine.decorators import cached
 from cachine.models import KeyContext
 
+
 def test_instance_method_caching_redis(redis_cache: RedisCache) -> None:
     cache = redis_cache
 
