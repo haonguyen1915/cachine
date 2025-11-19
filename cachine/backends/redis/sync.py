@@ -594,22 +594,29 @@ class RedisCache:
         )
 
     # Tag helpers
-    def add_tags(self, key: str, tags: list[str]) -> None:
+    def add_tags(self, key: str, tags: list[str], ttl: Optional[int | timedelta] = None) -> None:
         """Associate tags with a key.
 
         Args:
             key (str): Cache key (without namespace).
             tags (list[str]): Tags to associate.
+            ttl (int | timedelta | None): Optional TTL for tag associations.
+                If provided, tag sets will expire after this duration.
 
         Returns:
             None
         """
         client = self._require_client()
         k = self._ns + key
+        ttl_seconds = to_seconds(ttl) if ttl is not None else None
+
         for tag in tags:
             tkey = f"{self._ns}tag::{tag}"
             try:
                 client.sadd(tkey, k)
+                # Set TTL on tag set if provided
+                if ttl_seconds is not None and ttl_seconds > 0:
+                    client.expire(tkey, int(ttl_seconds))
             except Exception:
                 pass
 

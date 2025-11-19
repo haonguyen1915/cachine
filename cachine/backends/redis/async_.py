@@ -9,6 +9,7 @@ from typing import Any, Optional, cast
 
 from cachine.core.types import HealthStatus
 from cachine.models.redis_config import RedisClusterConfig, RedisConfig, RedisSentinelConfig, RedisSingleConfig
+from cachine.utils.helpers import to_seconds
 
 
 class AsyncRedisCache:
@@ -391,22 +392,29 @@ class AsyncRedisCache:
 
         return deleted
 
-    async def add_tags(self, key: str, tags: list[str]) -> None:
+    async def add_tags(self, key: str, tags: list[str], ttl: Optional[int | timedelta] = None) -> None:
         """Associate tags with a key.
 
         Args:
             key (str): Stored cache key.
             tags (list[str]): Tags to associate.
+            ttl (int | timedelta | None): Optional TTL for tag associations.
+                If provided, tag sets will expire after this duration.
 
         Returns:
             None
         """
         client = self._client
         k = self._ns + key
+        ttl_seconds = to_seconds(ttl) if ttl is not None else None
+
         for tag in tags:
-            tkey = f"{self._ns}tag::{tag}"
+            tkey = f"{self._ns}tag:{tag}"  # Consistent with sync version
             try:
                 await client.sadd(tkey, k)
+                # Set TTL on tag set if provided
+                if ttl_seconds is not None and ttl_seconds > 0:
+                    await client.expire(tkey, int(ttl_seconds))
             except Exception:
                 pass
 

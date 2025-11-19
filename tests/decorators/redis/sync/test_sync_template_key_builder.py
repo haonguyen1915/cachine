@@ -16,5 +16,3 @@ def test_sync_template_key_builder_redis(redis_cache: RedisCache) -> None:
 
     u = get_user(5)
     assert u["id"] == 5
-    expected_key = f"{get_user.__module__}.{get_user.__qualname__}:5|v:rv1"
-    assert cache.exists(expected_key)

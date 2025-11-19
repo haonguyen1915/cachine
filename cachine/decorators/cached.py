@@ -8,11 +8,12 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
+from datetime import timedelta
 from typing import Any, NamedTuple, Optional, Union, cast
-
-from ..core.types import AsyncCache, Cache, CacheLike
-from ..utils.key_builder import default_key_builder, template_key_builder
-
+from cachine.core.types import AsyncCache, Cache, CacheLike
+from cachine.models.common import KeyContext
+# from cachine.utils.key_builder import default_key_builder, template_key_builder
+from ._utils import build_cache_key
 # Type aliases for cache factories
 CacheFactory = Callable[[], Cache]
 AsyncCacheFactory = Callable[[], AsyncCache]
@@ -21,20 +22,6 @@ AnyCacheFactory = Union[CacheFactory, AsyncCacheFactory, Callable[[], CacheLike]
 _logger = logging.getLogger(__name__)
 
 
-class KeyContext(NamedTuple):
-    """Context passed to user key builders.
-
-    Attributes:
-        module (str): Module name containing the function.
-        qualname (str): Qualified function name (may include class).
-        full_name (str): Fully qualified path ``module.qualname``.
-        version (str | None): Decorator version string, if provided.
-    """
-
-    module: str
-    qualname: str
-    full_name: str
-    version: Optional[str]
 
 
 class _Singleflight:
@@ -77,126 +64,126 @@ _MISSING = object()
 _CACHE_UNRESOLVED = object()
 
 
-def _build_key(  # pylint: disable=too-many-branches,too-many-nested-blocks
-    fn: Callable[..., Any],
-    key_builder: Optional[str | Callable[..., str]],
-    version: Optional[str],
-    args: tuple[Any, ...],
-    kwargs: dict[str, Any],
-) -> str:
-    """Build a stable cache key for a function call.
-
-    Args:
-        fn (Callable[..., Any]): Wrapped function.
-        key_builder (str | Callable[..., str] | None): Optional custom key builder;
-            either a string template or a callable.
-        version (str | None): Optional version string to append.
-        args (tuple[Any, ...]): Positional arguments.
-        kwargs (dict[str, Any]): Keyword arguments.
-
-    Returns:
-        str: Cache key string.
-    """
-    if key_builder is not None:
-        # Support string templates directly; bind positional args to names for convenience
-        template_builder = None
-        bound_kwargs: Optional[dict[str, Any]] = None
-        if isinstance(key_builder, str):
-            template_builder = template_key_builder(key_builder)
-            # Try to bind positional/keyword args to parameter names so templates like {uid}
-            # work even when the function was called positionally, including kw-only params.
-            try:
-                sig = inspect.signature(fn)
-                ba = sig.bind_partial(*args, **kwargs)
-                merged = dict(ba.arguments)
-                merged.update(kwargs)  # explicit kwargs precedence
-                bound_kwargs = merged
-            except Exception:  # pylint: disable=try-except-raise
-                # Fallback: map positional args to KEYWORD_ONLY parameter names in order
-                try:
-                    sig = inspect.signature(fn)
-                    kwonly_names = [
-                        p.name for p in sig.parameters.values() if p.kind == inspect.Parameter.KEYWORD_ONLY and p.name not in kwargs
-                    ]
-                    if kwonly_names and len(args) <= len(kwonly_names):
-                        mapped = {kwonly_names[i]: args[i] for i in range(len(args))}
-                        merged = dict(kwargs)
-                        merged.update(mapped)
-                        bound_kwargs = merged
-                    else:
-                        bound_kwargs = None
-                except Exception:
-                    bound_kwargs = None
-            # Use the wrapped builder moving forward
-            key_builder = template_builder
-        module = fn.__module__
-        qualname = fn.__qualname__ if hasattr(fn, "__qualname__") else fn.__name__
-        ctx = KeyContext(module=module, qualname=qualname, full_name=f"{module}.{qualname}", version=version)
-        k = None
-        try:
-            # Prefer calling with context first
-            if bound_kwargs is not None:
-                k = key_builder(ctx, *args, **bound_kwargs)
-            else:
-                k = key_builder(ctx, *args, **kwargs)
-        except TypeError as e:
-            _logger.warning("key_builder(ctx, ...) failed for %r: %s; retrying without ctx", fn, e)
-            try:
-                k = key_builder(*args, **kwargs)
-            except TypeError as e2:
-                _logger.warning("key_builder(*args, **kwargs) failed for %r: %s; retrying args-only", fn, e2)
-                try:
-                    k = key_builder(*args)
-                except Exception as e3:  # pragma: no cover - rare path
-                    _logger.warning("key_builder final attempt failed for %r: %s; using default key", fn, e3)
-                    k = None
-        if k is None:
-            func_name = f"{module}.{qualname}"
-            k = default_key_builder(func_name, *args, **kwargs)
-    else:
-        module = fn.__module__
-        qualname = fn.__qualname__ if hasattr(fn, "__qualname__") else fn.__name__
-        func_name = f"{module}.{qualname}"
-
-        # Smart handling for methods: avoid raw self/cls repr in keys
-        norm_args: list[Any] = list(args)
-        if "." in qualname and args:
-            first = args[0]
-            if inspect.isclass(first):
-                cls = first
-                norm_args[0] = f"cls:{cls.__module__}.{cls.__qualname__}"
-            else:
-                # Heuristic: treat as instance method only if first arg looks like an object instance
-                primitive_types = (int, float, str, bytes, bytearray, bool, tuple, list, dict, set, frozenset)
-                if not isinstance(first, primitive_types):
-                    ident: Optional[str] = None
-                    if hasattr(first, "__cache_key__") and callable(first.__cache_key__):
-                        try:
-                            ident = str(first.__cache_key__())
-                        except Exception:
-                            ident = None
-                    elif hasattr(first, "cache_key"):
-                        ck = first.cache_key
-                        try:
-                            ident = str(ck() if callable(ck) else ck)
-                        except Exception:
-                            ident = None
-                    if not ident:
-                        inst_id = getattr(first, "__cachine_id", None)
-                        if not inst_id:
-                            inst_id = uuid.uuid4().hex
-                            try:
-                                setattr(first, "__cachine_id", inst_id)
-                            except Exception:
-                                pass
-                        ident = f"inst:{inst_id}"
-                    norm_args[0] = ident
-
-        k = default_key_builder(func_name, *norm_args, **kwargs)
-    if version:
-        k = f"{k}|v:{version}"
-    _logger.debug(f"Built cache key: '{k}'")
-    return k
+# def _build_key(  # pylint: disable=too-many-branches,too-many-nested-blocks
+#     fn: Callable[..., Any],
+#     key_builder: Optional[str | Callable[..., str]],
+#     version: Optional[str],
+#     args: tuple[Any, ...],
+#     kwargs: dict[str, Any],
+# ) -> str:
+#     """Build a stable cache key for a function call.
+#
+#     Args:
+#         fn (Callable[..., Any]): Wrapped function.
+#         key_builder (str | Callable[..., str] | None): Optional custom key builder;
+#             either a string template or a callable.
+#         version (str | None): Optional version string to append.
+#         args (tuple[Any, ...]): Positional arguments.
+#         kwargs (dict[str, Any]): Keyword arguments.
+#
+#     Returns:
+#         str: Cache key string.
+#     """
+#     if key_builder is not None:
+#         # Support string templates directly; bind positional args to names for convenience
+#         template_builder = None
+#         bound_kwargs: Optional[dict[str, Any]] = None
+#         if isinstance(key_builder, str):
+#             template_builder = template_key_builder(key_builder)
+#             # Try to bind positional/keyword args to parameter names so templates like {uid}
+#             # work even when the function was called positionally, including kw-only params.
+#             try:
+#                 sig = inspect.signature(fn)
+#                 ba = sig.bind_partial(*args, **kwargs)
+#                 merged = dict(ba.arguments)
+#                 merged.update(kwargs)  # explicit kwargs precedence
+#                 bound_kwargs = merged
+#             except Exception:  # pylint: disable=try-except-raise
+#                 # Fallback: map positional args to KEYWORD_ONLY parameter names in order
+#                 try:
+#                     sig = inspect.signature(fn)
+#                     kwonly_names = [
+#                         p.name for p in sig.parameters.values() if p.kind == inspect.Parameter.KEYWORD_ONLY and p.name not in kwargs
+#                     ]
+#                     if kwonly_names and len(args) <= len(kwonly_names):
+#                         mapped = {kwonly_names[i]: args[i] for i in range(len(args))}
+#                         merged = dict(kwargs)
+#                         merged.update(mapped)
+#                         bound_kwargs = merged
+#                     else:
+#                         bound_kwargs = None
+#                 except Exception:
+#                     bound_kwargs = None
+#             # Use the wrapped builder moving forward
+#             key_builder = template_builder
+#         module = fn.__module__
+#         qualname = fn.__qualname__ if hasattr(fn, "__qualname__") else fn.__name__
+#         ctx = KeyContext(module=module, qualname=qualname, full_name=f"{module}.{qualname}", version=version)
+#         k = None
+#         try:
+#             # Prefer calling with context first
+#             if bound_kwargs is not None:
+#                 k = key_builder(ctx, *args, **bound_kwargs)
+#             else:
+#                 k = key_builder(ctx, *args, **kwargs)
+#         except TypeError as e:
+#             _logger.warning("key_builder(ctx, ...) failed for %r: %s; retrying without ctx", fn, e)
+#             try:
+#                 k = key_builder(*args, **kwargs)
+#             except TypeError as e2:
+#                 _logger.warning("key_builder(*args, **kwargs) failed for %r: %s; retrying args-only", fn, e2)
+#                 try:
+#                     k = key_builder(*args)
+#                 except Exception as e3:  # pragma: no cover - rare path
+#                     _logger.warning("key_builder final attempt failed for %r: %s; using default key", fn, e3)
+#                     k = None
+#         if k is None:
+#             func_name = f"{module}.{qualname}"
+#             k = default_key_builder(func_name, *args, **kwargs)
+#     else:
+#         module = fn.__module__
+#         qualname = fn.__qualname__ if hasattr(fn, "__qualname__") else fn.__name__
+#         func_name = f"{module}.{qualname}"
+#
+#         # Smart handling for methods: avoid raw self/cls repr in keys
+#         norm_args: list[Any] = list(args)
+#         if "." in qualname and args:
+#             first = args[0]
+#             if inspect.isclass(first):
+#                 cls = first
+#                 norm_args[0] = f"cls:{cls.__module__}.{cls.__qualname__}"
+#             else:
+#                 # Heuristic: treat as instance method only if first arg looks like an object instance
+#                 primitive_types = (int, float, str, bytes, bytearray, bool, tuple, list, dict, set, frozenset)
+#                 if not isinstance(first, primitive_types):
+#                     ident: Optional[str] = None
+#                     if hasattr(first, "__cache_key__") and callable(first.__cache_key__):
+#                         try:
+#                             ident = str(first.__cache_key__())
+#                         except Exception:
+#                             ident = None
+#                     elif hasattr(first, "cache_key"):
+#                         ck = first.cache_key
+#                         try:
+#                             ident = str(ck() if callable(ck) else ck)
+#                         except Exception:
+#                             ident = None
+#                     if not ident:
+#                         inst_id = getattr(first, "__cachine_id", None)
+#                         if not inst_id:
+#                             inst_id = uuid.uuid4().hex
+#                             try:
+#                                 setattr(first, "__cachine_id", inst_id)
+#                             except Exception:
+#                                 pass
+#                         ident = f"inst:{inst_id}"
+#                     norm_args[0] = ident
+#
+#         k = default_key_builder(func_name, *norm_args, **kwargs)
+#     if version:
+#         k = f"{k}|v:{version}"
+#     _logger.debug(f"Built cache key: '{k}'")
+#     return k
 
 
 def _compute_ttls(
@@ -239,6 +226,7 @@ def cached(
     singleflight: bool = False,
     tags: Optional[Callable[..., list[str]] | list[str]] = None,
     tags_from_result: Optional[Callable[[Any], list[str]]] = None,
+    tag_ttl: Optional[int | timedelta] = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Cache-aside decorator with SWR, tags, and singleflight.
 
@@ -443,7 +431,7 @@ def cached(
                     final_tags = _finalize_tags(result, args, kwargs)
                     if final_tags and hasattr(rc_cached, "add_tags"):
                         try:
-                            rc_cached.add_tags(key, final_tags)
+                            rc_cached.add_tags(key, final_tags, ttl=tag_ttl)
                         except Exception:
                             pass
             finally:
@@ -519,7 +507,7 @@ def cached(
                 rc = _resolve_cache()
                 if rc is None:
                     return await fn(*args, **kwargs)
-                key = _build_key(fn, key_builder, version, args, kwargs)
+                key = build_cache_key(fn, key_builder, version, args, kwargs)
                 hit, value, fresh_until = await _aget_cached_entry(key)
                 now = time.time()
                 if hit:
@@ -567,7 +555,7 @@ def cached(
                                             await cast(Any, maybe_set)
                                         final_tags = _finalize_tags(result, args, kwargs)
                                         if final_tags and hasattr(rc, "add_tags"):
-                                            maybe = rc.add_tags(key, final_tags)
+                                            maybe = rc.add_tags(key, final_tags, ttl=tag_ttl)
                                             if inspect.isawaitable(maybe):
                                                 await cast(Any, maybe)
                                     finally:
@@ -632,7 +620,7 @@ def cached(
                             await cast(Any, maybe_set3)
                     final_tags = _finalize_tags(result, args, kwargs)
                     if final_tags and hasattr(rc, "add_tags"):
-                        maybe = rc.add_tags(key, final_tags)
+                        maybe = rc.add_tags(key, final_tags, ttl=tag_ttl)
                         try:
                             if inspect.isawaitable(maybe):
                                 await cast(Any, maybe)
@@ -652,7 +640,7 @@ def cached(
             rc = _resolve_cache()
             if rc is None:
                 return fn(*args, **kwargs)
-            key = _build_key(fn, key_builder, version, args, kwargs)
+            key = build_cache_key(fn, key_builder, version, args, kwargs)
             hit, value, fresh_until = _get_cached_entry(key)
             now = time.time()
             if hit:
@@ -702,7 +690,7 @@ def cached(
                 final_tags = _finalize_tags(result, args, kwargs)
                 if final_tags and hasattr(rc, "add_tags"):
                     try:
-                        rc.add_tags(key, final_tags)
+                        rc.add_tags(key, final_tags, ttl=tag_ttl)
                     except Exception:
                         pass
                 return result

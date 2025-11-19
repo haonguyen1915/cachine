@@ -59,3 +59,4 @@ def template_key_builder(template: str) -> Callable[..., str]:
             return default_key_builder(getattr(ctx, "full_name", "fn"), *args, **kwargs)
 
     return kb
+

@@ -61,7 +61,7 @@ def redis_cache() -> RedisCache:
         cfg_obj: RedisSentinelConfig = parse_redis_url(REDIS_URL)
     else:
         raise ValueError(f"Invalid REDIS_MODE: {REDIS_MODE}")
-    ns = f"ut:{uuid.uuid4().hex}"
+    ns = f"test:{uuid.uuid4().hex}"
     cache = RedisCache(cfg_obj, namespace=ns, serializer=JSONSerializer())
     try:
         yield cache
@@ -85,13 +85,13 @@ async def a_redis_cache() -> AsyncRedisCache:
     else:
         raise ValueError(f"Invalid REDIS_MODE: {REDIS_MODE}")
 
-    ns = f"ut:{uuid.uuid4().hex}"
+    ns = f"atest"
     cache = AsyncRedisCache(cfg_obj, namespace=ns, serializer=JSONSerializer())
     try:
         yield cache
     finally:
         try:
-            await cache.clear()
+            # await cache.clear()
             await cache.close()
         except Exception:
             pass

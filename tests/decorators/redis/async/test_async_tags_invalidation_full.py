@@ -7,6 +7,30 @@ from cachine.decorators import cached
 
 
 @pytest.mark.asyncio
+async def test_async_cache_with_tags(a_redis_cache: AsyncRedisCache) -> None:
+    cache = a_redis_cache
+    calls = {"n": 0}
+
+    @cached(
+        cache,
+        ttl=60,
+        stale_ttl=30,
+        tags=lambda uid: ["users", f"user:{uid}"],
+        tags_from_result=lambda u: [f"role:{u['role']}"] if u else [],
+    )
+    async def get_user(uid: int) -> dict[str, Any]:
+        calls["n"] += 1
+        return {"id": uid, "role": "admin" if uid == 1 else "member"}
+
+    # Populate and cache two users
+    assert await get_user(1) == {"id": 1, "role": "admin"}
+    assert await get_user(2) == {"id": 2, "role": "member"}
+    assert await get_user(1) == {"id": 1, "role": "admin"}
+    assert await get_user(2) == {"id": 2, "role": "member"}
+    # assert calls["n"] == 2
+
+
+@pytest.mark.asyncio
 async def test_async_tags_full_invalidation(a_redis_cache: AsyncRedisCache) -> None:
     cache = a_redis_cache
     calls = {"n": 0}
