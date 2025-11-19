@@ -312,7 +312,7 @@ def cached(
             sig = None
 
         # Lazily resolve cache on first call to avoid early initialization.
-        resolved_cache: CacheLike | None = None
+        resolved_cache: CacheLike | None | object = _CACHE_UNRESOLVED
         _resolve_lock = threading.Lock()
 
         def _resolve_cache() -> CacheLike | None:
@@ -330,7 +330,9 @@ def cached(
                         except Exception as e:  # pragma: no cover - rare
                             _logger.error("Failed to resolve cache for %r: %s; falling back to pass-through", fn, e)
                             resolved_cache = None
-            return cast(Optional[CacheLike], None) if resolved_cache is None else cast(CacheLike, resolved_cache)
+            # Return None if cache couldn't be resolved, otherwise return the resolved cache
+            # Type narrowing: after resolution, resolved_cache is either CacheLike or None
+            return cast(Optional[CacheLike], None if resolved_cache is None else resolved_cache)
 
         def _finalize_tags(result: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> list[str]:
             out: list[str] = []
