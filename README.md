@@ -1058,10 +1058,8 @@ Built with ❤️ using:
 
 ## Support & Community
 
-- 📖 [Full Documentation](https://docs.cachine.dev)
-- 💬 [GitHub Discussions](https://github.com/yourusername/cachine/discussions)
-- 🐛 [Report Issues](https://github.com/yourusername/cachine/issues)
-- ⭐ Star us on [GitHub](https://github.com/yourusername/cachine)
+- 🐛 [Report Issues](https://github.com/haonguyen1915/cachine/issues)
+- ⭐ Star us on [GitHub](https://github.com/haonguyen1915/cachine)
 
 ---
 
