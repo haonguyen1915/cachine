@@ -121,6 +121,4 @@ warn_unreachable = true
 strict = true
 strict_optional = true
 disable_error_code = ["func-returns-value", "call-overload", "override"]
-plugins = ["pydantic.mypy"]
 exclude = []
-

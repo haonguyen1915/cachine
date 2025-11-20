@@ -614,8 +614,12 @@ from cachine import CacheBuilder
 from cachine.decorators import cached
 from cachine.middleware.fail_open import FailOpenMiddleware
 
-base = CacheBuilder.from_url("redis://localhost:6379/0", namespace="myapp").build()
-cache = FailOpenMiddleware(base)
+# Build sync Redis cache wrapped with fail-open middleware
+cache = (
+    CacheBuilder.from_url("redis://localhost:6379/0", namespace="myapp")
+    .add_middleware(FailOpenMiddleware)
+    .build()
+)
 
 @cached(cache=cache, ttl=60)
 def compute(x):
@@ -864,10 +868,17 @@ cache = RedisCache(serializer=PickleSerializer())  # Supports all Python types
 ### 3. Compress Only Large Data
 
 ```python
-cache = CompressionMiddleware(
-    base_cache,
-    algorithm="gzip",
-    min_size=1024  # Only compress > 1KB (avoid overhead on small values)
+from cachine import CacheBuilder
+from cachine.middleware import CompressionMiddleware
+
+cache = (
+    CacheBuilder.from_cache(base_cache)
+    .add_middleware(lambda c: CompressionMiddleware(
+        c,
+        algorithm="gzip",
+        min_size=1024,  # Only compress > 1KB (avoid overhead on small values)
+    ))
+    .build()
 )
 ```
 
