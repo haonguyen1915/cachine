@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from cachine.core.types import AsyncCache, Cache, HealthStatus
 
@@ -43,7 +43,7 @@ class SyncCacheMiddleware(BaseMiddleware):
     def get(self, key: str, default: Any = None, *, serializer: Any = None) -> Any:
         return self._cache.get(key, default=default, serializer=serializer)
 
-    def set(self, key: str, value: Any, *, ttl: Optional[int | timedelta] = None, serializer: Any = None) -> None:
+    def set(self, key: str, value: Any, *, ttl: int | timedelta | None = None, serializer: Any = None) -> None:
         return self._cache.set(key, value, ttl=ttl, serializer=serializer)
 
     def delete(self, key: str) -> bool:
@@ -56,7 +56,7 @@ class SyncCacheMiddleware(BaseMiddleware):
         return self._cache.clear(dangerously_clear_all=dangerously_clear_all)
 
     # Enrichment
-    def get_or_set(self, key: str, factory: Any, *, ttl: Optional[int | timedelta] = None, jitter: Optional[int] = None) -> Any:
+    def get_or_set(self, key: str, factory: Any, *, ttl: int | timedelta | None = None, jitter: int | None = None) -> Any:
         return self._cache.get_or_set(key, factory, ttl=ttl, jitter=jitter)
 
     # TTL management
@@ -66,24 +66,24 @@ class SyncCacheMiddleware(BaseMiddleware):
     def expire_at(self, key: str, when: datetime) -> bool:
         return self._cache.expire_at(key, when)
 
-    def touch(self, key: str, *, ttl: Optional[int | timedelta] = None) -> bool:
+    def touch(self, key: str, *, ttl: int | timedelta | None = None) -> bool:
         return self._cache.touch(key, ttl=ttl)
 
-    def ttl(self, key: str) -> Optional[int]:
+    def ttl(self, key: str) -> int | None:
         return self._cache.ttl(key)
 
     def persist(self, key: str) -> bool:
         return self._cache.persist(key)
 
     # Counters
-    def incr(self, key: str, *, delta: int = 1, ttl_on_create: Optional[int | timedelta] = None) -> int:
+    def incr(self, key: str, *, delta: int = 1, ttl_on_create: int | timedelta | None = None) -> int:
         return self._cache.incr(key, delta=delta, ttl_on_create=ttl_on_create)
 
     def decr(self, key: str, *, delta: int = 1) -> int:
         return self._cache.decr(key, delta=delta)
 
     # Tags
-    def add_tags(self, key: str, tags: list[str], ttl: Optional[int | timedelta] = None) -> None:
+    def add_tags(self, key: str, tags: list[str], ttl: int | timedelta | None = None) -> None:
         add_tags_fn = getattr(self._cache, "add_tags", None)
         if add_tags_fn is not None:
             add_tags_fn(key, tags, ttl=ttl)
@@ -103,7 +103,7 @@ class SyncCacheMiddleware(BaseMiddleware):
         return self._cache.close()
 
     # Stats / observability
-    def get_stats(self) -> Optional[dict[str, Any]]:
+    def get_stats(self) -> dict[str, Any] | None:
         return self._cache.get_stats()
 
     # Context manager
@@ -127,7 +127,7 @@ class AsyncCacheMiddleware(BaseMiddleware):
     async def get(self, key: str, default: Any = None, *, serializer: Any = None) -> Any:
         return await self._cache.get(key, default=default, serializer=serializer)
 
-    async def set(self, key: str, value: Any, *, ttl: Optional[int | timedelta] = None, serializer: Any = None) -> None:
+    async def set(self, key: str, value: Any, *, ttl: int | timedelta | None = None, serializer: Any = None) -> None:
         return await self._cache.set(key, value, ttl=ttl, serializer=serializer)
 
     async def delete(self, key: str) -> bool:
@@ -145,8 +145,8 @@ class AsyncCacheMiddleware(BaseMiddleware):
         key: str,
         factory: Any,
         *,
-        ttl: Optional[int | timedelta] = None,
-        jitter: Optional[int] = None,
+        ttl: int | timedelta | None = None,
+        jitter: int | None = None,
     ) -> Any:
         return await self._cache.get_or_set(key, factory, ttl=ttl, jitter=jitter)
 
@@ -157,24 +157,24 @@ class AsyncCacheMiddleware(BaseMiddleware):
     async def expire_at(self, key: str, when: datetime) -> bool:
         return await self._cache.expire_at(key, when)
 
-    async def touch(self, key: str, *, ttl: Optional[int | timedelta] = None) -> bool:
+    async def touch(self, key: str, *, ttl: int | timedelta | None = None) -> bool:
         return await self._cache.touch(key, ttl=ttl)
 
-    async def ttl(self, key: str) -> Optional[int]:
+    async def ttl(self, key: str) -> int | None:
         return await self._cache.ttl(key)
 
     async def persist(self, key: str) -> bool:
         return await self._cache.persist(key)
 
     # Counters
-    async def incr(self, key: str, *, delta: int = 1, ttl_on_create: Optional[int | timedelta] = None) -> int:
+    async def incr(self, key: str, *, delta: int = 1, ttl_on_create: int | timedelta | None = None) -> int:
         return await self._cache.incr(key, delta=delta, ttl_on_create=ttl_on_create)
 
     async def decr(self, key: str, *, delta: int = 1) -> int:
         return await self._cache.decr(key, delta=delta)
 
     # Tags
-    async def add_tags(self, key: str, tags: list[str], ttl: Optional[int | timedelta] = None) -> None:
+    async def add_tags(self, key: str, tags: list[str], ttl: int | timedelta | None = None) -> None:
         import inspect
 
         add_tags_fn = getattr(self._cache, "add_tags", None)
@@ -208,7 +208,7 @@ class AsyncCacheMiddleware(BaseMiddleware):
         return await self._cache.close()
 
     # Stats / observability
-    def get_stats(self) -> Optional[dict[str, Any]]:
+    def get_stats(self) -> dict[str, Any] | None:
         return self._cache.get_stats()
 
     # Async context manager

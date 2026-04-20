@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import Optional
 
 
-def to_seconds(ttl: Optional[int | timedelta]) -> Optional[int]:
+def to_seconds(ttl: int | timedelta | None) -> int | None:
     """Convert a TTL to seconds.
 
     Args:

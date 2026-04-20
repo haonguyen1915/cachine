@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections import OrderedDict, defaultdict
-from typing import Optional
 
 
 class LRUEviction:
@@ -33,7 +32,7 @@ class LRUEviction:
         """
         self._order.pop(key, None)
 
-    def evict_one(self) -> Optional[str]:
+    def evict_one(self) -> str | None:
         """Choose one key to evict.
 
         Returns:
@@ -56,7 +55,7 @@ class LFUEviction:
     def __init__(self) -> None:
         self._freq: dict[str, int] = {}
         self._buckets: dict[int, OrderedDict[str, None]] = defaultdict(OrderedDict)
-        self._min_freq: Optional[int] = None
+        self._min_freq: int | None = None
 
     def note_access(self, key: str) -> None:
         """Record access for a key and update its frequency bucket.
@@ -100,7 +99,7 @@ class LFUEviction:
                         # Recompute min_freq
                         self._min_freq = min(self._buckets.keys(), default=None)
 
-    def evict_one(self) -> Optional[str]:
+    def evict_one(self) -> str | None:
         """Choose one key to evict from the lowest frequency bucket.
 
         Returns:

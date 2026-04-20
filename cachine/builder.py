@@ -3,7 +3,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Optional, Union, cast
+from typing import Any, Union, cast
 
 from cachine.serializers.base import Serializer
 
@@ -42,8 +42,8 @@ class CacheBuilder:
         )
     """
 
-    _base_factory: Optional[CacheFactory] = None
-    _base_instance: Optional[Cache] = None
+    _base_factory: CacheFactory | None = None
+    _base_instance: Cache | None = None
     _middlewares: list[SyncMiddlewareSpec] = field(default_factory=list)
 
     @staticmethod
@@ -145,8 +145,8 @@ class AsyncCacheBuilder:
     Supports mapping known sync middlewares to their async counterparts when possible.
     """
 
-    _base_factory: Optional[AsyncCacheFactory] = None
-    _base_instance: Optional[AsyncCache] = None
+    _base_factory: AsyncCacheFactory | None = None
+    _base_instance: AsyncCache | None = None
     _middlewares: list[AsyncMiddlewareSpec] = field(default_factory=list)
 
     @staticmethod

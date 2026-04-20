@@ -5,7 +5,7 @@ import logging
 import re
 import uuid
 from collections.abc import Callable
-from typing import Any, Optional
+from typing import Any
 
 from cachine.models.common import KeyContext
 
@@ -86,8 +86,8 @@ def hash_components(func_name: str, args: tuple[Any, ...], kwargs: dict[str, Any
 
 def build_cache_key(
     fn: Callable[..., Any],
-    key_builder: Optional[str | Callable[..., str]],
-    version: Optional[str],
+    key_builder: str | Callable[..., str] | None,
+    version: str | None,
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> str:
@@ -180,7 +180,7 @@ def build_cache_key(
     return f"{final_key}|v:{version}" if version else final_key
 
 
-def template_key_builder(template: str) -> Callable[..., Optional[str]]:
+def template_key_builder(template: str) -> Callable[..., str | None]:
     """
     Compile a template string into a safe key builder.
 
@@ -200,7 +200,7 @@ def template_key_builder(template: str) -> Callable[..., Optional[str]]:
 
     placeholders = PLACEHOLDER_RE.findall(template)
 
-    def build(*call_args: Any, **call_kwargs: Any) -> Optional[str]:
+    def build(*call_args: Any, **call_kwargs: Any) -> str | None:
         """
         Gọi theo một trong hai dạng:
             tmpl(ctx, *args, **kwargs)

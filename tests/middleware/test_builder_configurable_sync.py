@@ -31,7 +31,8 @@ def test_builder_with_configured_middleware_factory(redis_cache: RedisCache) -> 
 def test_builder_with_lambda_configured_middleware(redis_cache: RedisCache) -> None:
     """Test builder with lambda-configured middleware."""
     cache = (
-        CacheBuilder.from_cache(redis_cache)
+        CacheBuilder
+        .from_cache(redis_cache)
         .add_middleware(lambda c: ConfigurableMetricsMiddleware(c, namespace="lambda-app", enabled=False))
         .build()
     )
@@ -52,7 +53,8 @@ def test_builder_with_lambda_configured_middleware(redis_cache: RedisCache) -> N
 def test_builder_with_multiple_configured_middlewares(redis_cache: RedisCache) -> None:
     """Test builder with multiple configured middlewares."""
     cache = (
-        CacheBuilder.from_cache(redis_cache)
+        CacheBuilder
+        .from_cache(redis_cache)
         .add_middleware(ConfigurableMetricsMiddleware.create(namespace="first"))
         .add_middleware(MetricsMiddleware)  # Standard middleware
         .build()
@@ -99,7 +101,8 @@ def test_builder_chaining_multiple_configured_middlewares(redis_cache: RedisCach
     """Test chaining multiple configured middlewares with different settings."""
     # Simulate a scenario with multiple layers
     cache = (
-        CacheBuilder.from_cache(redis_cache)
+        CacheBuilder
+        .from_cache(redis_cache)
         .add_middleware(ConfigurableMetricsMiddleware.create(namespace="layer1", enabled=True))
         .add_middleware(ConfigurableMetricsMiddleware.create(namespace="layer2", enabled=True))
         .build()

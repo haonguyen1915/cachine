@@ -162,7 +162,7 @@ class TestParseClusterRedisURL:
     def test_cluster_url_with_query_params(self) -> None:
         """Test parsing Redis Cluster URL with timeout query parameters."""
         config = parse_redis_url(
-            "redis://node1:7000,node2:7001?" "socket_timeout=10&socket_connect_timeout=5&retry_on_timeout=true&decode_responses=1"
+            "redis://node1:7000,node2:7001?socket_timeout=10&socket_connect_timeout=5&retry_on_timeout=true&decode_responses=1"
         )
         assert isinstance(config, RedisClusterConfig)
         assert config.socket_timeout == 10.0
@@ -360,7 +360,7 @@ class TestComplexURLs:
     def test_cluster_url_production_like(self) -> None:
         """Test parsing production-like cluster URL."""
         config = parse_redis_url(
-            "rediss://user:pass@prod-redis-01.example.com:7000," "prod-redis-02.example.com:7001," "prod-redis-03.example.com:7002"
+            "rediss://user:pass@prod-redis-01.example.com:7000,prod-redis-02.example.com:7001,prod-redis-03.example.com:7002"
         )
         assert isinstance(config, RedisClusterConfig)
         assert config.ssl is True

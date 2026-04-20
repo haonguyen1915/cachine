@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 
 class TagBasedInvalidation:
@@ -16,7 +16,7 @@ class TagBasedInvalidation:
     def __init__(self, cache: Any) -> None:
         self._cache = cache
 
-    async def set(self, key: str, value: Any, *, ttl: Optional[int] = None, tags: Optional[list[str]] = None) -> None:
+    async def set(self, key: str, value: Any, *, ttl: int | None = None, tags: list[str] | None = None) -> None:
         """Set a value and optionally attach tags.
 
         Args:

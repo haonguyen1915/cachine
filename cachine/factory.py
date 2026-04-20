@@ -17,6 +17,7 @@ def cache_from_url(url: str, namespace: str | None = None, serializer: Serialize
         - redis:// or rediss:// - Single Redis instance
         - redis://host1:port1,host2:port2 - Redis Cluster
         - redis+sentinel:// or rediss+sentinel:// - Redis Sentinel
+        - sqlite:///path/to.db or sqlite:///:memory: - SQLite
 
     Args:
         url: Connection URL string
@@ -43,6 +44,9 @@ def cache_from_url(url: str, namespace: str | None = None, serializer: Serialize
 
         >>> # Redis Sentinel
         >>> cache = cache_from_url("redis+sentinel://mymaster/0?sentinels=sentinel1:26379,sentinel2:26379", namespace="myapp")
+
+        >>> # SQLite
+        >>> cache = cache_from_url("sqlite:///tmp/cache.db", namespace="myapp")
     """
     if not url:
         raise RedisURLParseError("URL cannot be empty")
@@ -65,8 +69,22 @@ def cache_from_url(url: str, namespace: str | None = None, serializer: Serialize
         from .backends.redis.sync import RedisCache
 
         return RedisCache(config, namespace=namespace, serializer=serializer)
+
+    if scheme == "sqlite":
+        from .backends.sqlite.sync import SQLiteCache
+        from .utils.sqlite_url import parse_sqlite_url
+
+        sqlite_config = parse_sqlite_url(url)
+
+        if kwargs:
+            import warnings
+
+            warnings.warn(f"Unknown arguments ignored: {list(kwargs.keys())}", stacklevel=2)
+
+        return SQLiteCache(sqlite_config, namespace=namespace, serializer=serializer)
+
     raise RedisURLParseError(
-        f"Unsupported cache URL scheme: {scheme}. " f"Supported schemes: redis://, rediss://, redis+sentinel://, rediss+sentinel://"
+        f"Unsupported cache URL scheme: {scheme}. Supported schemes: redis://, rediss://, redis+sentinel://, rediss+sentinel://, sqlite://"
     )
 
 
@@ -77,6 +95,7 @@ def async_cache_from_url(url: str, namespace: str | None = None, serializer: Ser
         - redis:// or rediss:// - Single Redis instance
         - redis://host1:port1,host2:port2 - Redis Cluster
         - redis+sentinel:// or rediss+sentinel:// - Redis Sentinel
+        - sqlite:///path/to.db or sqlite:///:memory: - SQLite (via aiosqlite)
 
     Args:
         url: Connection URL string
@@ -97,6 +116,9 @@ def async_cache_from_url(url: str, namespace: str | None = None, serializer: Ser
 
         >>> # Redis Cluster (async)
         >>> cache = async_cache_from_url("redis://node1:7000,node2:7001,node3:7002", namespace="myapp")
+
+        >>> # SQLite (async, requires aiosqlite)
+        >>> cache = async_cache_from_url("sqlite:///tmp/cache.db", namespace="myapp")
     """
     if not url:
         raise RedisURLParseError("URL cannot be empty")
@@ -119,8 +141,22 @@ def async_cache_from_url(url: str, namespace: str | None = None, serializer: Ser
         from .backends.redis.async_ import AsyncRedisCache
 
         return AsyncRedisCache(config, namespace=namespace, serializer=serializer)
+
+    if scheme == "sqlite":
+        from .backends.sqlite.async_ import AsyncSQLiteCache
+        from .utils.sqlite_url import parse_sqlite_url
+
+        sqlite_config = parse_sqlite_url(url)
+
+        if kwargs:
+            import warnings
+
+            warnings.warn(f"Unknown arguments ignored: {list(kwargs.keys())}", stacklevel=2)
+
+        return AsyncSQLiteCache(sqlite_config, namespace=namespace, serializer=serializer)
+
     raise RedisURLParseError(
-        f"Unsupported cache URL scheme: {scheme}. " f"Supported schemes: redis://, rediss://, redis+sentinel://, rediss+sentinel://"
+        f"Unsupported cache URL scheme: {scheme}. Supported schemes: redis://, rediss://, redis+sentinel://, rediss+sentinel://, sqlite://"
     )
 
 

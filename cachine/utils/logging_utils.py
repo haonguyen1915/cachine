@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Iterable
-from typing import Optional
 
 try:  # Optional dependency for colored output
     from colorama import Fore, Style  # pylint: disable=import-error
@@ -21,8 +20,8 @@ except Exception:  # pragma: no cover - graceful degradation
     class _DummyStyle(_Dummy):
         BRIGHT = DIM = NORMAL = ""
 
-    Fore = _DummyFore()
-    Style = _DummyStyle()
+    Fore = _DummyFore()  # pylint: disable=invalid-name
+    Style = _DummyStyle()  # pylint: disable=invalid-name
 
 
 class ColorFormatter(logging.Formatter):
@@ -58,7 +57,7 @@ class ColorFormatter(logging.Formatter):
         return super().format(record)
 
 
-def _parse_level(level: Optional[str | int]) -> int:
+def _parse_level(level: str | int | None) -> int:
     if level is None:
         return logging.INFO
     if isinstance(level, int):
@@ -72,8 +71,8 @@ def _parse_level(level: Optional[str | int]) -> int:
 
 def __logger_setup(  # noqa: D401 - simple setup function
     *,
-    level: Optional[str | int] = None,
-    include: Optional[Iterable[str]] = None,
+    level: str | int | None = None,
+    include: Iterable[str] | None = None,
     fmt: str = "%(asctime)s - %(levelname)s - %(name)s - %(filename)s:%(lineno)d - %(message)s",
 ) -> None:
     """Configure root and third-party loggers with a colored formatter.
@@ -111,7 +110,7 @@ def __logger_setup(  # noqa: D401 - simple setup function
         logger.setLevel(resolved_level if name == "root" else logging.WARNING)
 
 
-def logger_setup(**kwargs: Optional[str | int | Iterable[str]]) -> None:
+def logger_setup(**kwargs: str | int | Iterable[str] | None) -> None:
     """Public alias for ``__logger_setup``.
 
     Args:

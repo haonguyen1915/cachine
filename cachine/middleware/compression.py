@@ -6,7 +6,7 @@ from __future__ import annotations
 import gzip
 import inspect
 import zlib
-from typing import Any, Optional
+from typing import Any
 
 from .base import BaseMiddleware
 
@@ -52,7 +52,7 @@ class CompressionMiddleware(BaseMiddleware):
             return zlib.decompress(data)
         raise ValueError(f"Unsupported compression algorithm: {self.algorithm}")
 
-    def set(self, key: str, value: Any, *, ttl: Optional[int] = None, serializer: Any = None) -> None:
+    def set(self, key: str, value: Any, *, ttl: int | None = None, serializer: Any = None) -> None:
         """Store value with optional compression if size exceeds threshold (sync)."""
         # Determine original type for restoration later
         original_type = type(value).__name__
@@ -85,7 +85,7 @@ class CompressionMiddleware(BaseMiddleware):
             # Store as-is
             self._cache.set(key, value, ttl=ttl)
 
-    async def aset(self, key: str, value: Any, *, ttl: Optional[int] = None, serializer: Any = None) -> None:
+    async def aset(self, key: str, value: Any, *, ttl: int | None = None, serializer: Any = None) -> None:
         """Store value with optional compression if size exceeds threshold (async)."""
         # Determine original type for restoration later
         original_type = type(value).__name__

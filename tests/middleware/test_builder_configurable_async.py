@@ -13,7 +13,8 @@ from tests.middleware.configurable_middleware import AsyncConfigurableMetricsMid
 async def test_async_builder_with_configured_middleware_factory(a_redis_cache: AsyncRedisCache) -> None:
     """Test async builder with factory-style configured middleware."""
     cache = (
-        AsyncCacheBuilder.from_cache(a_redis_cache)
+        AsyncCacheBuilder
+        .from_cache(a_redis_cache)
         .add_middleware(AsyncConfigurableMetricsMiddleware.create(namespace="async-app", enabled=True))
         .build()
     )
@@ -35,7 +36,8 @@ async def test_async_builder_with_configured_middleware_factory(a_redis_cache: A
 async def test_async_builder_with_lambda_configured_middleware(a_redis_cache: AsyncRedisCache) -> None:
     """Test async builder with lambda-configured middleware."""
     cache = (
-        AsyncCacheBuilder.from_cache(a_redis_cache)
+        AsyncCacheBuilder
+        .from_cache(a_redis_cache)
         .add_middleware(lambda c: AsyncConfigurableMetricsMiddleware(c, namespace="lambda-async", enabled=False))
         .build()
     )
@@ -57,7 +59,8 @@ async def test_async_builder_with_lambda_configured_middleware(a_redis_cache: As
 async def test_async_builder_with_multiple_configured_middlewares(a_redis_cache: AsyncRedisCache) -> None:
     """Test async builder with multiple configured middlewares."""
     cache = (
-        AsyncCacheBuilder.from_cache(a_redis_cache)
+        AsyncCacheBuilder
+        .from_cache(a_redis_cache)
         .add_middleware(AsyncConfigurableMetricsMiddleware.create(namespace="async-first"))
         .add_middleware(AsyncMetricsMiddleware)  # Standard middleware
         .build()
@@ -86,7 +89,8 @@ async def test_async_builder_with_multiple_configured_middlewares(a_redis_cache:
 async def test_async_builder_from_url_with_configured_middleware() -> None:
     """Test async builder from URL with configured middleware."""
     cache = (
-        AsyncCacheBuilder.from_url("memory://")
+        AsyncCacheBuilder
+        .from_url("memory://")
         .add_middleware(AsyncConfigurableMetricsMiddleware.create(namespace="async-url-test", enabled=True))
         .build()
     )
@@ -112,7 +116,8 @@ async def test_async_builder_sync_middleware_auto_mapping_with_config(a_redis_ca
     """
     # Using sync MetricsMiddleware class - should auto-map to AsyncMetricsMiddleware
     cache = (
-        AsyncCacheBuilder.from_cache(a_redis_cache)
+        AsyncCacheBuilder
+        .from_cache(a_redis_cache)
         .add_middleware(MetricsMiddleware)  # Sync class → auto-mapped to async
         .build()
     )
@@ -128,7 +133,8 @@ async def test_async_builder_sync_middleware_auto_mapping_with_config(a_redis_ca
 async def test_async_builder_chaining_multiple_configured_middlewares(a_redis_cache: AsyncRedisCache) -> None:
     """Test chaining multiple configured middlewares with different settings."""
     cache = (
-        AsyncCacheBuilder.from_cache(a_redis_cache)
+        AsyncCacheBuilder
+        .from_cache(a_redis_cache)
         .add_middleware(AsyncConfigurableMetricsMiddleware.create(namespace="async-layer1", enabled=True))
         .add_middleware(AsyncConfigurableMetricsMiddleware.create(namespace="async-layer2", enabled=True))
         .build()
@@ -148,7 +154,8 @@ async def test_async_builder_chaining_multiple_configured_middlewares(a_redis_ca
 async def test_async_builder_as_factory_with_configured_middleware(a_redis_cache: AsyncRedisCache) -> None:
     """Test that async builder.as_factory() works with configured middleware."""
     factory = (
-        AsyncCacheBuilder.from_cache(a_redis_cache)
+        AsyncCacheBuilder
+        .from_cache(a_redis_cache)
         .add_middleware(AsyncConfigurableMetricsMiddleware.create(namespace="async-factory-test"))
         .as_factory()
     )

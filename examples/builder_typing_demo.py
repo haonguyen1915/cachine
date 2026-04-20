@@ -45,7 +45,8 @@ def multiple_middleware_demo() -> None:
 
     # Multiple middleware, still returns Cache type
     cache: Cache = (
-        CacheBuilder.from_cache(redis_cache)
+        CacheBuilder
+        .from_cache(redis_cache)
         .add_middleware(ConfigurableMetricsMiddleware.create(namespace="app1"))
         .add_middleware(MetricsMiddleware)
         .build()

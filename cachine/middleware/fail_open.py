@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from ..core.types import AsyncCache, HealthStatus
 from ..core.types import Cache as SyncCache
@@ -50,7 +50,7 @@ class FailOpenMiddleware(BaseMiddleware):
             self._log_error("Cache get failed for key '%s': %s: %s", key, type(e).__name__, str(e))
             return default
 
-    def set(self, key: str, value: Any, *, ttl: Optional[int | timedelta] = None, serializer: Any = None) -> None:  # noqa: D401
+    def set(self, key: str, value: Any, *, ttl: int | timedelta | None = None, serializer: Any = None) -> None:  # noqa: D401
         try:
             self._cache.set(key, value, ttl=ttl, serializer=serializer)
         except Exception as e:
@@ -85,14 +85,14 @@ class FailOpenMiddleware(BaseMiddleware):
             self._log_error("Cache expire_at failed for key '%s': %s: %s", key, type(e).__name__, str(e))
             return False
 
-    def touch(self, key: str, *, ttl: Optional[int | timedelta] = None) -> bool:
+    def touch(self, key: str, *, ttl: int | timedelta | None = None) -> bool:
         try:
             return bool(self._cache.touch(key, ttl=ttl))
         except Exception as e:
             self._log_error("Cache touch failed for key '%s': %s: %s", key, type(e).__name__, str(e))
             return False
 
-    def ttl(self, key: str) -> Optional[int]:
+    def ttl(self, key: str) -> int | None:
         try:
             return self._cache.ttl(key)
         except Exception as e:
@@ -107,7 +107,7 @@ class FailOpenMiddleware(BaseMiddleware):
             return False
 
     # ---- Counters ----
-    def incr(self, key: str, *, delta: int = 1, ttl_on_create: Optional[int | timedelta] = None) -> int:  # noqa: ARG002
+    def incr(self, key: str, *, delta: int = 1, ttl_on_create: int | timedelta | None = None) -> int:  # noqa: ARG002
         try:
             return int(self._cache.incr(key, delta=delta, ttl_on_create=ttl_on_create))
         except Exception as e:
@@ -195,7 +195,7 @@ class AsyncFailOpenMiddleware(BaseMiddleware):
             self._log_error("Async cache get failed for key '%s': %s: %s", key, type(e).__name__, str(e))
             return default
 
-    async def set(self, key: str, value: Any, *, ttl: Optional[int | timedelta] = None, serializer: Any = None) -> None:  # noqa: D401
+    async def set(self, key: str, value: Any, *, ttl: int | timedelta | None = None, serializer: Any = None) -> None:  # noqa: D401
         try:
             await self._cache.set(key, value, ttl=ttl, serializer=serializer)
         except Exception as e:
@@ -230,14 +230,14 @@ class AsyncFailOpenMiddleware(BaseMiddleware):
             self._log_error("Async cache expire_at failed for key '%s': %s: %s", key, type(e).__name__, str(e))
             return False
 
-    async def touch(self, key: str, *, ttl: Optional[int | timedelta] = None) -> bool:
+    async def touch(self, key: str, *, ttl: int | timedelta | None = None) -> bool:
         try:
             return bool(await self._cache.touch(key, ttl=ttl))
         except Exception as e:
             self._log_error("Async cache touch failed for key '%s': %s: %s", key, type(e).__name__, str(e))
             return False
 
-    async def ttl(self, key: str) -> Optional[int]:
+    async def ttl(self, key: str) -> int | None:
         try:
             return await self._cache.ttl(key)
         except Exception as e:
@@ -252,7 +252,7 @@ class AsyncFailOpenMiddleware(BaseMiddleware):
             return False
 
     # ---- Counters ----
-    async def incr(self, key: str, *, delta: int = 1, ttl_on_create: Optional[int | timedelta] = None) -> int:  # noqa: ARG002
+    async def incr(self, key: str, *, delta: int = 1, ttl_on_create: int | timedelta | None = None) -> int:  # noqa: ARG002
         try:
             return int(await self._cache.incr(key, delta=delta, ttl_on_create=ttl_on_create))
         except Exception as e:

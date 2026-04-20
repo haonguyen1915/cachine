@@ -149,7 +149,7 @@ class RedisClusterConfig:
     decode_responses: bool = False
     extra: dict[str, Any] = field(default_factory=dict)
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-positional-arguments
         self,
         nodes: list[RedisNodeConfig] | tuple[RedisNodeConfig, ...],
         password: str | None = None,
@@ -265,7 +265,7 @@ class RedisSentinelConfig:
     decode_responses: bool = False
     extra: dict[str, Any] = field(default_factory=dict)
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-positional-arguments
         self,
         service_name: str,
         sentinels: list[tuple[str, int]] | tuple[tuple[str, int], ...],

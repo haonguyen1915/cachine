@@ -6,7 +6,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import inspect
-from typing import Any, Optional
+from typing import Any
 
 from .base import BaseMiddleware
 
@@ -62,7 +62,7 @@ class EncryptionMiddleware(BaseMiddleware):
         """Decrypt data using Fernet."""
         return self._fernet.decrypt(data)  # type: ignore[no-any-return]
 
-    def set(self, key: str, value: Any, *, ttl: Optional[int] = None, serializer: Any = None) -> None:
+    def set(self, key: str, value: Any, *, ttl: int | None = None, serializer: Any = None) -> None:
         """Store encrypted value (sync)."""
         # Determine original type for restoration later
         original_type = type(value).__name__
@@ -100,7 +100,7 @@ class EncryptionMiddleware(BaseMiddleware):
         }
         self._cache.set(key, wrapped_value, ttl=ttl)
 
-    async def aset(self, key: str, value: Any, *, ttl: Optional[int] = None, serializer: Any = None) -> None:
+    async def aset(self, key: str, value: Any, *, ttl: int | None = None, serializer: Any = None) -> None:
         """Store encrypted value (async)."""
         # Determine original type for restoration later
         original_type = type(value).__name__

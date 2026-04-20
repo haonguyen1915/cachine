@@ -14,6 +14,8 @@ Stop waiting for slow API calls, database queries, and expensive computations. C
 
 **Perfect for:** API response caching, database query caching, expensive computations, rate limiting, session storage.
 
+**Backends:** In-memory (fastest, non-persistent) • SQLite (persistent, zero-config) • Redis (distributed, HA).
+
 ---
 
 ## Table of Contents
@@ -33,6 +35,7 @@ Stop waiting for slow API calls, database queries, and expensive computations. C
   - [🔖 Tag-Based Invalidation](#-tag-based-invalidation)
 - [Choosing the Right Backend](#choosing-the-right-backend)
   - [📦 InMemoryCache](#-inmemorycache)
+  - [💾 SQLiteCache](#-sqlitecache-persistent-zero-config)
   - [🔴 RedisCache](#-rediscache-single-instance)
   - [🔴🔴🔴 Redis Cluster](#-redis-cluster)
   - [🛡️ Redis Sentinel](#️-redis-sentinel-high-availability)
@@ -94,13 +97,18 @@ pip install cachine
 pip install cachine redis
 ```
 
+**With SQLite** (sync uses stdlib `sqlite3` — no extra install needed; async needs `aiosqlite`):
+```bash
+pip install 'cachine[sqlite]'   # installs aiosqlite for AsyncSQLiteCache
+```
+
 **Optional extras:**
 ```bash
 pip install msgpack       # Fast binary serialization
 pip install cryptography  # Encryption middleware
 ```
 
-**Requirements:** Python 3.9+, redis-py 4.0+ (optional)
+**Requirements:** Python 3.9+, redis-py 4.0+ (optional), aiosqlite 0.19+ (optional, async SQLite)
 
 ---
 
@@ -343,6 +351,57 @@ cache = InMemoryCache(
 
 cache.set("key", "value", ttl=300)
 ```
+
+### 💾 SQLiteCache (Persistent, Zero-Config)
+
+Persistent cache stored in a single file — fills the gap between `InMemoryCache` (non-persistent) and `RedisCache` (needs a server).
+
+**When to use:**
+- ✅ CLI tools, desktop apps, Jupyter notebooks
+- ✅ Need cache to survive restarts, without running Redis
+- ✅ Single-VM services, dev/test environments
+- ✅ Concurrent readers/writers in the same process (WAL mode by default)
+
+**When NOT to use:**
+- ❌ Cache must be shared across machines (use Redis)
+- ❌ Very high write contention across many processes (WAL helps, but Redis scales better)
+
+**Example (sync):**
+```python
+from cachine import SQLiteCache
+from cachine.models import SQLiteConfig
+from cachine.serializers import JSONSerializer
+
+cache = SQLiteCache(
+    SQLiteConfig(database="/tmp/cache.db"),  # or ":memory:" for ephemeral
+    namespace="myapp",
+    serializer=JSONSerializer(),
+)
+
+cache.set("user:1", {"id": 1, "name": "Alice"}, ttl=300)
+cache.get("user:1")  # {'id': 1, 'name': 'Alice'}
+```
+
+**Example (async, requires `aiosqlite`):**
+```python
+from cachine import AsyncSQLiteCache
+from cachine.models import SQLiteConfig
+
+cache = AsyncSQLiteCache(
+    SQLiteConfig(database="/tmp/cache.db"),
+    namespace="myapp",
+)
+
+await cache.set("k", b"v", ttl=60)
+await cache.get("k")  # b'v'
+```
+
+**Built-in features:**
+- WAL journal mode for concurrent readers/writers
+- Atomic counters via `BEGIN IMMEDIATE` transactions (`incr` / `decr` with `ttl_on_create`)
+- Tag-based invalidation (`add_tags` / `invalidate_tags`)
+- Lazy TTL expiration on read
+- Namespace isolation (multiple caches can share the same file)
 
 ### 🔴 RedisCache (Single Instance)
 
@@ -773,6 +832,18 @@ cache = CacheBuilder.from_url("redis://node1:7000,node2:7001,node3:7002", namesp
 # Redis Sentinel
 cache = CacheBuilder.from_url(
     "redis+sentinel://mymaster/0?sentinels=s1:26379,s2:26379",
+    namespace="myapp",
+).build()
+
+# SQLite (file-backed, persistent)
+cache = CacheBuilder.from_url("sqlite:///tmp/cache.db", namespace="myapp").build()
+
+# SQLite (in-memory, ephemeral)
+cache = CacheBuilder.from_url("sqlite:///:memory:", namespace="myapp").build()
+
+# SQLite with tuning parameters
+cache = CacheBuilder.from_url(
+    "sqlite:///tmp/cache.db?timeout=10&busy_timeout=3000&journal_mode=WAL&synchronous=NORMAL",
     namespace="myapp",
 ).build()
 ```

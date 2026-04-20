@@ -5,7 +5,7 @@ import inspect
 import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from cachine.core.types import HealthStatus
 from cachine.models.redis_config import RedisClusterConfig, RedisConfig, RedisSentinelConfig, RedisSingleConfig
@@ -38,9 +38,9 @@ class AsyncRedisCache:
         self,
         config: RedisConfig,
         *,
-        namespace: Optional[str] = None,
-        serializer: Optional[Any] = None,
-        pubsub_channel: Optional[str] = "cachine:invalidate",
+        namespace: str | None = None,
+        serializer: Any | None = None,
+        pubsub_channel: str | None = "cachine:invalidate",
         auto_publish_invalidations: bool = False,
     ) -> None:
         # Client attribute (runtime async redis client)
@@ -86,7 +86,7 @@ class AsyncRedisCache:
                 return raw
         return raw
 
-    async def set(self, key: str, value: Any, ttl: Optional[int | timedelta] = None, serializer: Any = None) -> None:
+    async def set(self, key: str, value: Any, ttl: int | timedelta | None = None, serializer: Any = None) -> None:
         """Set a value by key.
 
         Args:
@@ -181,7 +181,7 @@ class AsyncRedisCache:
                         pass
 
     # Enrichment
-    async def get_or_set(self, key: str, factory: Any, ttl: Optional[int | timedelta] = None, jitter: Optional[int] = None) -> Any:  # pylint: disable=unused-argument
+    async def get_or_set(self, key: str, factory: Any, ttl: int | timedelta | None = None, jitter: int | None = None) -> Any:  # pylint: disable=unused-argument
         """Get or compute-and-set a value.
 
         Args:
@@ -237,7 +237,7 @@ class AsyncRedisCache:
         ts = int(when.timestamp())
         return bool(await client.expireat(k, ts))
 
-    async def touch(self, key: str, ttl: Optional[int | timedelta] = None) -> bool:
+    async def touch(self, key: str, ttl: int | timedelta | None = None) -> bool:
         """Refresh presence or set a new TTL.
 
         Args:
@@ -261,7 +261,7 @@ class AsyncRedisCache:
             return True
         return bool(await client.expire(k, seconds))
 
-    async def ttl(self, key: str) -> Optional[int]:
+    async def ttl(self, key: str) -> int | None:
         """Get remaining TTL.
 
         Args:
@@ -306,7 +306,7 @@ class AsyncRedisCache:
             return True
 
     # Counters
-    async def incr(self, key: str, delta: int = 1, ttl_on_create: Optional[int | timedelta] = None) -> int:
+    async def incr(self, key: str, delta: int = 1, ttl_on_create: int | timedelta | None = None) -> int:
         """Increment an integer value by ``delta``.
 
         Args:
@@ -355,7 +355,7 @@ class AsyncRedisCache:
         return await self.incr(key, delta=-int(delta))
 
     # Tags
-    async def invalidate_tags(self, tags: list[str], publish: Optional[bool] = None) -> int:
+    async def invalidate_tags(self, tags: list[str], publish: bool | None = None) -> int:
         """Invalidate keys by tags.
 
         Args:
@@ -392,7 +392,7 @@ class AsyncRedisCache:
 
         return deleted
 
-    async def add_tags(self, key: str, tags: list[str], ttl: Optional[int | timedelta] = None) -> None:
+    async def add_tags(self, key: str, tags: list[str], ttl: int | timedelta | None = None) -> None:
         """Associate tags with a key.
 
         Args:
@@ -449,7 +449,7 @@ class AsyncRedisCache:
         self,
         handler: Callable[[dict[str, Any]], Any],
         *,
-        channel: Optional[str] = None,
+        channel: str | None = None,
     ) -> None:
         """Subscribe to tag invalidation events and process them with a handler.
 
@@ -524,7 +524,7 @@ class AsyncRedisCache:
         except Exception:
             pass
 
-    def get_stats(self) -> Optional[dict[str, Any]]:
+    def get_stats(self) -> dict[str, Any] | None:
         """Get cache statistics.
 
         Returns:

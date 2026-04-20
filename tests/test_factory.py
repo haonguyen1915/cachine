@@ -78,7 +78,7 @@ class TestCacheFromURL:
         from cachine.models import RedisSingleConfig
 
         cache = cache_from_url(
-            "redis://localhost:6379/0?" "socket_timeout=5.5&" "socket_connect_timeout=3.0&" "retry_on_timeout=true&" "decode_responses=yes",
+            "redis://localhost:6379/0?socket_timeout=5.5&socket_connect_timeout=3.0&retry_on_timeout=true&decode_responses=yes",
             namespace="test",
         )
         assert isinstance(cache, RedisCache)
@@ -107,7 +107,7 @@ class TestCacheFromURL:
         from cachine.utils.redis_url import parse_redis_url
 
         # Parse URL to verify config (avoid cluster connection)
-        config = parse_redis_url("rediss://user:pass@node1:7000,node2:7001,node3:7002?" "socket_timeout=10&" "retry_on_timeout=1")
+        config = parse_redis_url("rediss://user:pass@node1:7000,node2:7001,node3:7002?socket_timeout=10&retry_on_timeout=1")
         assert isinstance(config, RedisClusterConfig)
         assert config.ssl is True
         assert config.username == "user"
@@ -209,7 +209,7 @@ class TestAsyncCacheFromURL:
         from cachine.models import RedisSingleConfig
 
         cache = async_cache_from_url(
-            "redis://localhost:6379/0?" "socket_timeout=5.5&" "socket_connect_timeout=3.0&" "retry_on_timeout=true&" "decode_responses=yes",
+            "redis://localhost:6379/0?socket_timeout=5.5&socket_connect_timeout=3.0&retry_on_timeout=true&decode_responses=yes",
             namespace="test",
         )
         assert isinstance(cache, AsyncRedisCache)

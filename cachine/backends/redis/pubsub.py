@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from typing import Any, Optional
+from typing import Any
 
 
 class RedisInvalidationBus:
@@ -23,7 +23,7 @@ class RedisInvalidationBus:
         client: Any,
         *,
         channel: str = "cachine:invalidate",
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
     ) -> None:
         self._client = client
         self._channel = channel
@@ -81,7 +81,7 @@ class AsyncRedisInvalidationBus:
         namespace (str | None): Namespace identifier included in events.
     """
 
-    def __init__(self, client: Any, *, channel: str = "cachine:invalidate", namespace: Optional[str] = None) -> None:
+    def __init__(self, client: Any, *, channel: str = "cachine:invalidate", namespace: str | None = None) -> None:
         self._client = client
         self._channel = channel
         self._ns = namespace

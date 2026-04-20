@@ -8,7 +8,7 @@ import threading
 import time
 from collections.abc import Callable
 from datetime import timedelta
-from typing import Any, Optional, Union, cast
+from typing import Any, Union, cast
 
 from cachine.core.types import AsyncCache, Cache, CacheLike
 
@@ -185,9 +185,7 @@ _CACHE_UNRESOLVED = object()
 #     return k
 
 
-def _compute_ttls(
-    ttl: Optional[int | float], jitter: Optional[int], stale_ttl: Optional[int]
-) -> tuple[Optional[int], Optional[int], Optional[float]]:
+def _compute_ttls(ttl: int | float | None, jitter: int | None, stale_ttl: int | None) -> tuple[int | None, int | None, float | None]:
     """Compute storage and freshness TTLS.
 
     Args:
@@ -214,18 +212,18 @@ def _compute_ttls(
 def cached(
     cache: CacheLike | Callable[..., CacheLike] | None,
     *,
-    ttl: Optional[Callable[..., int | float] | int | float] = None,
-    jitter: Optional[int] = None,
-    key_builder: Optional[str | Callable[..., str]] = None,
-    condition: Optional[Callable[[Any], bool]] = None,
-    enabled: Optional[bool | Callable[..., bool]] = True,
-    version: Optional[str] = None,
+    ttl: Callable[..., int | float] | int | float | None = None,
+    jitter: int | None = None,
+    key_builder: str | Callable[..., str] | None = None,
+    condition: Callable[[Any], bool] | None = None,
+    enabled: bool | Callable[..., bool] | None = True,
+    version: str | None = None,
     cache_none: bool = False,
-    stale_ttl: Optional[int] = None,
+    stale_ttl: int | None = None,
     singleflight: bool = False,
-    tags: Optional[Callable[..., list[str]] | list[str]] = None,
-    tags_from_result: Optional[Callable[[Any], list[str]]] = None,
-    tag_ttl: Optional[int | timedelta] = None,
+    tags: Callable[..., list[str]] | list[str] | None = None,
+    tags_from_result: Callable[[Any], list[str]] | None = None,
+    tag_ttl: int | timedelta | None = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Cache-aside decorator with SWR, tags, and singleflight.
 
@@ -319,7 +317,7 @@ def cached(
                             resolved_cache = None
             # Return None if cache couldn't be resolved, otherwise return the resolved cache
             # Type narrowing: after resolution, resolved_cache is either CacheLike or None
-            return cast(Optional[CacheLike], None if resolved_cache is None else resolved_cache)
+            return cast(CacheLike | None, None if resolved_cache is None else resolved_cache)
 
         def _finalize_tags(result: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> list[str]:
             out: list[str] = []
@@ -342,7 +340,7 @@ def cached(
                     seen.add(t)
             return unique
 
-        def _store_value(key: str, value: Any, effective_ttl: Optional[int | float], cache_instance: CacheLike) -> None:
+        def _store_value(key: str, value: Any, effective_ttl: int | float | None, cache_instance: CacheLike) -> None:
             store_ttl, _fresh_ttl, fresh_until = _compute_ttls(effective_ttl, jitter, stale_ttl)
             if effective_ttl is None or stale_ttl is None:
                 # No stale logic: store raw value
@@ -353,7 +351,7 @@ def cached(
                 envelope = {"__cachine__": 1, "v": value, "fu": fresh_until}
                 cache_instance.set(key, envelope, ttl=store_ttl)
 
-        def _get_cached_entry(key: str) -> tuple[bool, Any, Optional[float]]:
+        def _get_cached_entry(key: str) -> tuple[bool, Any, float | None]:
             """Read cached entry and freshness info.
 
             Args:
@@ -373,7 +371,7 @@ def cached(
                 return True, val.get("v"), float(fu_val) if fu_val is not None else None
             return True, val, None
 
-        async def _aget_cached_entry(key: str) -> tuple[bool, Any, Optional[float]]:
+        async def _aget_cached_entry(key: str) -> tuple[bool, Any, float | None]:
             """Async version of ``_get_cached_entry``.
 
             Args:
@@ -445,7 +443,7 @@ def cached(
             finally:
                 _sf.release(key)
 
-        def _compute_effective_ttl(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Optional[int | float]:
+        def _compute_effective_ttl(args: tuple[Any, ...], kwargs: dict[str, Any]) -> int | float | None:
             """Compute the effective TTL for this call.
 
             Args:

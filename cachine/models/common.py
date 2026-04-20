@@ -1,4 +1,4 @@
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 
 
 class KeyContext(NamedTuple):
@@ -14,4 +14,4 @@ class KeyContext(NamedTuple):
     module: str
     qualname: str
     full_name: str
-    version: Optional[str]
+    version: str | None

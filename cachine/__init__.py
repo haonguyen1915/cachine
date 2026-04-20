@@ -12,6 +12,8 @@ For middleware and serializers, import from their respective subpackages.
 from .backends.inmemory.cache import InMemoryCache
 from .backends.redis.async_ import AsyncRedisCache
 from .backends.redis.sync import RedisCache
+from .backends.sqlite.async_ import AsyncSQLiteCache
+from .backends.sqlite.sync import SQLiteCache
 from .builder import AsyncCacheBuilder, CacheBuilder
 from .core.types import AsyncCache as AsyncCacheType
 from .core.types import Cache as CacheType
@@ -23,6 +25,8 @@ __all__ = [
     "InMemoryCache",
     "RedisCache",
     "AsyncRedisCache",
+    "SQLiteCache",
+    "AsyncSQLiteCache",
     "CacheType",
     "AsyncCacheType",
     "CacheLike",

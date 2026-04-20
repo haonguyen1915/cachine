@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from threading import RLock
-from typing import Any, Optional
+from typing import Any
 
 from cachine.core.types import HealthStatus
 from cachine.strategies.eviction import LRUEviction
@@ -31,7 +31,7 @@ class InMemoryCache:
             Useful to isolate tenants or test runs.
     """
 
-    def __init__(self, *, max_size: Optional[int] = None, eviction_policy: Any | None = None, namespace: str | None = None) -> None:
+    def __init__(self, *, max_size: int | None = None, eviction_policy: Any | None = None, namespace: str | None = None) -> None:
         """Initialize an in-memory cache.
 
         - max_size: when set, enables eviction using ``eviction_policy`` (defaults
@@ -42,7 +42,7 @@ class InMemoryCache:
         - namespace: optional prefix added to all keys for logical separation.
         """
         self._store: dict[str, Any] = {}
-        self._ttl: dict[str, Optional[datetime]] = {}
+        self._ttl: dict[str, datetime | None] = {}
         self._ns = f"{namespace}:" if namespace else ""
         self._lock = RLock()
         self._max_size = max_size
@@ -73,7 +73,7 @@ class InMemoryCache:
             self._cleanup_if_expired(k)
             return default
 
-    def set(self, key: str, value: Any, ttl: Optional[int | timedelta] = None, serializer: Any = None) -> None:  # pylint: disable=unused-argument
+    def set(self, key: str, value: Any, ttl: int | timedelta | None = None, serializer: Any = None) -> None:  # pylint: disable=unused-argument
         """Set a value by key.
 
         Args:
@@ -160,7 +160,7 @@ class InMemoryCache:
                     self._policy = LRUEviction() if self._max_size else None
 
     # Enrichment
-    def get_or_set(self, key: str, factory: Any, ttl: Optional[int | timedelta] = None, jitter: Optional[int] = None) -> Any:  # pylint: disable=unused-argument
+    def get_or_set(self, key: str, factory: Any, ttl: int | timedelta | None = None, jitter: int | None = None) -> Any:  # pylint: disable=unused-argument
         """Get or compute-and-set a value.
 
         Args:
@@ -225,7 +225,7 @@ class InMemoryCache:
             self._ttl[k] = when
             return True
 
-    def touch(self, key: str, ttl: Optional[int | timedelta] = None) -> bool:
+    def touch(self, key: str, ttl: int | timedelta | None = None) -> bool:
         """Refresh TTL or assert presence.
 
         Args:
@@ -250,7 +250,7 @@ class InMemoryCache:
             self._ttl[k] = datetime.now(timezone.utc) + timedelta(seconds=seconds)
             return True
 
-    def ttl(self, key: str) -> Optional[int]:
+    def ttl(self, key: str) -> int | None:
         """Get remaining TTL.
 
         Args:
@@ -288,7 +288,7 @@ class InMemoryCache:
             return had_ttl
 
     # Counters
-    def incr(self, key: str, delta: int = 1, ttl_on_create: Optional[int | timedelta] = None) -> int:
+    def incr(self, key: str, delta: int = 1, ttl_on_create: int | timedelta | None = None) -> int:
         """Increment an integer value by ``delta``.
 
         Args:
@@ -347,7 +347,7 @@ class InMemoryCache:
         return removed
 
     # Tag assignment for decorator/strategies
-    def add_tags(self, key: str, tags: list[str], ttl: Optional[int | timedelta] = None) -> None:  # pylint: disable=unused-argument
+    def add_tags(self, key: str, tags: list[str], ttl: int | timedelta | None = None) -> None:  # pylint: disable=unused-argument
         """Associate tags with a key for later invalidation.
 
         Args:
