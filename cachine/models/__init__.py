@@ -8,5 +8,14 @@ from .redis_config import (
     RedisSentinelConfig,
     RedisSingleConfig,
 )
+from .sqlite_config import SQLiteConfig
 
-__all__ = ["RedisConfig", "RedisSingleConfig", "RedisNodeConfig", "RedisClusterConfig", "RedisSentinelConfig", "KeyContext"]
+__all__ = [
+    "RedisConfig",
+    "RedisSingleConfig",
+    "RedisNodeConfig",
+    "RedisClusterConfig",
+    "RedisSentinelConfig",
+    "SQLiteConfig",
+    "KeyContext",
+]
