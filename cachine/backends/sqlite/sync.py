@@ -3,10 +3,16 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from threading import RLock
-from typing import Any
+from typing import Any, overload
 
 from cachine.core.types import HealthStatus
 from cachine.models.sqlite_config import SQLiteConfig
+from cachine.utils._deprecations import (
+    MISSING,
+    resolve_renamed_kwarg,
+    warn_deprecated_kwarg,
+    warn_deprecated_method,
+)
 from cachine.utils.helpers import to_seconds
 
 from ._schema import DDL_STATEMENTS, like_prefix_pattern, now_epoch
@@ -23,48 +29,89 @@ class SQLiteCache:
     a server). SQLite gives persistence with zero external dependencies —
     ideal for CLIs, desktop apps, notebooks, and single-VM services.
 
-    Storage layout:
-      - ``cache_data(key, value, expires_at)`` holds values as BLOBs (when a
-        serializer is configured) or their native sqlite types (ints for
-        counters, strings, bytes). ``expires_at`` is UTC Unix seconds or NULL.
-      - ``cache_tags(tag, key)`` maintains the many-to-many association used
-        by ``add_tags`` / ``invalidate_tags``.
+    Construction supports two forms:
+      - Kwargs shortcut (recommended for simple cases)::
 
-    Concurrency:
-      - A single connection with ``check_same_thread=False`` is shared, and
-        access is serialized through a :class:`threading.RLock`. WAL journal
-        mode is enabled by default so concurrent readers from other processes
-        don't block each other.
-      - ``incr``/``invalidate_tags`` wrap their statements in ``BEGIN
-        IMMEDIATE`` transactions to make multi-step mutations atomic under
-        concurrent processes.
+            SQLiteCache(database="/tmp/cache.db", namespace="app")
 
-    Args:
-        config (SQLiteConfig): SQLite configuration.
-        namespace (str | None): Optional key namespace prefix.
-        serializer (Any | None): Default serializer (``dumps``/``loads``).
+      - Explicit config (advanced tuning)::
 
-    Examples:
-        >>> from cachine.models.sqlite_config import SQLiteConfig
-        >>> cache = SQLiteCache(SQLiteConfig(database=":memory:"), namespace="app")
-        >>> cache.set("k", b"v", ttl=60)
-        >>> cache.get("k")
-        b'v'
+            SQLiteCache(SQLiteConfig(database="...", journal_mode="WAL"), namespace="app")
     """
 
+    @overload
     def __init__(
         self,
         config: SQLiteConfig,
         *,
         namespace: str | None = None,
         serializer: Any | None = None,
+    ) -> None: ...
+
+    @overload
+    def __init__(
+        self,
+        *,
+        database: str = ":memory:",
+        timeout: float = 5.0,
+        busy_timeout_ms: int | None = 5000,
+        journal_mode: str | None = "WAL",
+        synchronous: str | None = "NORMAL",
+        check_same_thread: bool = False,
+        namespace: str | None = None,
+        serializer: Any | None = None,
+    ) -> None: ...
+
+    def __init__(
+        self,
+        config: SQLiteConfig | None = None,
+        *,
+        database: str | None = None,
+        timeout: float = 5.0,
+        busy_timeout_ms: int | None = 5000,
+        journal_mode: str | None = "WAL",
+        synchronous: str | None = "NORMAL",
+        check_same_thread: bool = False,
+        namespace: str | None = None,
+        serializer: Any | None = None,
     ) -> None:
+        if config is not None and database is not None:
+            raise TypeError("SQLiteCache: pass either `config` or `database=...` kwargs, not both")
+        if config is None:
+            config = SQLiteConfig(
+                database=database if database is not None else ":memory:",
+                timeout=timeout,
+                busy_timeout_ms=busy_timeout_ms,
+                journal_mode=journal_mode,
+                synchronous=synchronous,
+                check_same_thread=check_same_thread,
+            )
         self._config = config
         self._ns = f"{namespace}:" if namespace else ""
         self._serializer = serializer
         self._lock = RLock()
         self._conn = self._create_connection(config)
         self._init_schema()
+
+    # ---- URL constructor ----
+    @classmethod
+    def from_url(
+        cls,
+        url: str,
+        *,
+        namespace: str | None = None,
+        serializer: Any | None = None,
+    ) -> SQLiteCache:
+        """Construct a :class:`SQLiteCache` from a ``sqlite://`` URL."""
+        from cachine.utils.sqlite_url import SQLiteURLParseError, parse_sqlite_url
+
+        scheme = url.split("://", 1)[0].lower() if "://" in url else ""
+        if scheme and scheme != "sqlite":
+            raise SQLiteURLParseError(
+                f"SQLiteCache.from_url received non-SQLite URL ({scheme!r}); use RedisCache.from_url for redis:// URLs"
+            )
+        config = parse_sqlite_url(url)
+        return cls(config, namespace=namespace, serializer=serializer)
 
     # ---- Connection setup ----
     @staticmethod
@@ -73,7 +120,6 @@ class SQLiteCache:
             "database": config.database,
             "timeout": float(config.timeout),
             "check_same_thread": bool(config.check_same_thread),
-            # autocommit: we issue explicit BEGIN when needed.
             "isolation_level": None,
         }
         if config.database.startswith("file:"):
@@ -90,7 +136,6 @@ class SQLiteCache:
                 try:
                     conn.execute(f"PRAGMA journal_mode={self._config.journal_mode}")
                 except sqlite3.DatabaseError:
-                    # WAL is unsupported on some in-memory databases; ignore.
                     pass
             if self._config.synchronous:
                 conn.execute(f"PRAGMA synchronous={self._config.synchronous}")
@@ -100,8 +145,14 @@ class SQLiteCache:
                 conn.execute(stmt)
 
     # ---- Basic ops ----
-    def get(self, key: str, default: Any = None, serializer: Any = None) -> Any:
+    def get(self, key: str, default: Any = None, *, serializer: Any = MISSING) -> Any:
         """Get a value by key. Expired keys return ``default``."""
+        if serializer is not MISSING:
+            warn_deprecated_kwarg(
+                name="serializer",
+                owner="SQLiteCache.get",
+                replacement="configure serializer on the cache constructor",
+            )
         k = self._ns + key
         with self._lock:
             self._cleanup_if_expired(k)
@@ -109,7 +160,7 @@ class SQLiteCache:
         if row is None:
             return default
         raw = row[0]
-        ser = serializer or self._serializer
+        ser = serializer if serializer is not MISSING and serializer is not None else self._serializer
         if ser is not None and isinstance(raw, bytes | bytearray):
             try:
                 return ser.loads(bytes(raw))
@@ -117,10 +168,23 @@ class SQLiteCache:
                 return raw
         return raw
 
-    def set(self, key: str, value: Any, ttl: int | timedelta | None = None, serializer: Any = None) -> None:
-        """Store a value with optional TTL (seconds or timedelta)."""
+    def set(
+        self,
+        key: str,
+        value: Any,
+        *,
+        ttl: int | timedelta | None = None,
+        serializer: Any = MISSING,
+    ) -> None:
+        """Store a value with optional TTL."""
+        if serializer is not MISSING:
+            warn_deprecated_kwarg(
+                name="serializer",
+                owner="SQLiteCache.set",
+                replacement="configure serializer on the cache constructor",
+            )
         k = self._ns + key
-        ser = serializer or self._serializer
+        ser = serializer if serializer is not MISSING and serializer is not None else self._serializer
         payload = ser.dumps(value) if ser is not None else value
         expires_at = self._expires_at(ttl)
         if expires_at is _EXPIRE_IMMEDIATELY:
@@ -134,7 +198,7 @@ class SQLiteCache:
             )
 
     def delete(self, key: str) -> bool:
-        """Delete a key. Returns True if it existed."""
+        """Delete a key."""
         k = self._ns + key
         with self._lock:
             cur = self._conn.execute("DELETE FROM cache_data WHERE key = ?", (k,))
@@ -142,19 +206,28 @@ class SQLiteCache:
             return bool(cur.rowcount)
 
     def exists(self, key: str) -> bool:
-        """Return True if ``key`` exists and is not expired."""
+        """Return ``True`` if the key exists and is not expired."""
         k = self._ns + key
         with self._lock:
             self._cleanup_if_expired(k)
             row = self._conn.execute("SELECT 1 FROM cache_data WHERE key = ?", (k,)).fetchone()
         return row is not None
 
-    def clear(self, dangerously_clear_all: bool = False) -> None:
+    def clear(self, *, all: bool = False, dangerously_clear_all: Any = MISSING) -> None:
         """Clear keys in this namespace, or the whole database."""
+        force = resolve_renamed_kwarg(
+            old_name="dangerously_clear_all",
+            new_name="all",
+            old_value=dangerously_clear_all,
+            new_value=all,
+            owner="SQLiteCache.clear",
+            new_default=False,
+        )
+        force = bool(force) if force is not None else False
         with self._lock:
-            if dangerously_clear_all or not self._ns:
-                if not dangerously_clear_all and not self._ns:
-                    raise RuntimeError("clear() requires a namespace or set dangerously_clear_all=True")
+            if force or not self._ns:
+                if not force and not self._ns:
+                    raise RuntimeError("clear() requires a namespace or pass all=True")
                 self._conn.execute("DELETE FROM cache_data")
                 self._conn.execute("DELETE FROM cache_tags")
                 return
@@ -163,19 +236,25 @@ class SQLiteCache:
             self._conn.execute("DELETE FROM cache_data WHERE key LIKE ? ESCAPE '\\'", (pattern,))
 
     # ---- Enrichment ----
-    def get_or_set(self, key: str, factory: Any, ttl: int | timedelta | None = None, jitter: int | None = None) -> Any:  # pylint: disable=unused-argument
+    def get_or_set(  # pylint: disable=unused-argument
+        self,
+        key: str,
+        factory: Any,
+        *,
+        ttl: int | timedelta | None = None,
+        jitter: int | None = None,  # noqa: ARG002
+    ) -> Any:
         """Get the cached value or compute-and-set via ``factory``."""
-        sentinel = _MISSING
-        val = self.get(key, default=sentinel)
-        if val is not sentinel:
+        val = self.get(key, default=_MISSING)
+        if val is not _MISSING:
             return val
         computed = factory() if callable(factory) else factory
         self.set(key, computed, ttl=ttl)
         return computed
 
     # ---- TTL management ----
-    def expire(self, key: str, ttl: int | timedelta) -> bool:
-        """Set a relative TTL. ``ttl <= 0`` deletes the key."""
+    def expire(self, key: str, *, ttl: int | timedelta) -> bool:
+        """Set a relative TTL."""
         k = self._ns + key
         seconds = to_seconds(ttl)
         if seconds is None:
@@ -190,7 +269,7 @@ class SQLiteCache:
             return bool(cur.rowcount)
 
     def expire_at(self, key: str, when: datetime) -> bool:
-        """Set an absolute expiration. Past timestamps delete the key."""
+        """Set an absolute expiration."""
         k = self._ns + key
         ts = when.timestamp() if when.tzinfo else when.replace(tzinfo=timezone.utc).timestamp()
         if ts <= now_epoch():
@@ -202,14 +281,14 @@ class SQLiteCache:
             )
             return bool(cur.rowcount)
 
-    def touch(self, key: str, ttl: int | timedelta | None = None) -> bool:
-        """Refresh presence; with ``ttl`` also resets expiration."""
+    def touch(self, key: str, *, ttl: int | timedelta | None = None) -> bool:
+        """Refresh presence; with ``ttl`` resets expiration."""
         if ttl is None:
             return self.exists(key)
-        return self.expire(key, ttl)
+        return self.expire(key, ttl=ttl)
 
     def ttl(self, key: str) -> int | None:
-        """Return remaining TTL in seconds, or None if key/TTL is missing."""
+        """Return remaining TTL in seconds."""
         k = self._ns + key
         with self._lock:
             self._cleanup_if_expired(k)
@@ -220,7 +299,7 @@ class SQLiteCache:
         return remaining if remaining >= 0 else None
 
     def persist(self, key: str) -> bool:
-        """Remove expiration from a key. Returns True if a TTL was cleared."""
+        """Remove expiration from a key."""
         k = self._ns + key
         with self._lock:
             cur = self._conn.execute(
@@ -230,10 +309,24 @@ class SQLiteCache:
             return bool(cur.rowcount)
 
     # ---- Counters ----
-    def incr(self, key: str, delta: int = 1, ttl_on_create: int | timedelta | None = None) -> int:
-        """Atomically add ``delta`` to an integer counter. ``ttl_on_create`` only applies on first create."""
+    def incr(
+        self,
+        key: str,
+        *,
+        delta: int = 1,
+        ttl_if_new: int | timedelta | None = None,
+        ttl_on_create: Any = MISSING,
+    ) -> int:
+        """Atomically add ``delta`` to an integer counter."""
+        effective_ttl = resolve_renamed_kwarg(
+            old_name="ttl_on_create",
+            new_name="ttl_if_new",
+            old_value=ttl_on_create,
+            new_value=ttl_if_new,
+            owner="SQLiteCache.incr",
+        )
         k = self._ns + key
-        create_seconds = to_seconds(ttl_on_create)
+        create_seconds = to_seconds(effective_ttl) if effective_ttl is not None else None
         with self._lock, _transaction(self._conn):
             row = self._conn.execute(
                 "SELECT value, expires_at FROM cache_data WHERE key = ?",
@@ -257,13 +350,13 @@ class SQLiteCache:
                 )
             return new_val
 
-    def decr(self, key: str, delta: int = 1) -> int:
-        """Decrement an integer counter by ``delta``."""
+    def decr(self, key: str, *, delta: int = 1) -> int:
+        """Decrement an integer counter."""
         return self.incr(key, delta=-int(delta))
 
     # ---- Tags ----
-    def add_tags(self, key: str, tags: list[str], ttl: int | timedelta | None = None) -> None:  # pylint: disable=unused-argument
-        """Associate ``tags`` with ``key``. ``ttl`` is accepted for interface parity and ignored."""
+    def add_tags(self, key: str, tags: list[str], *, ttl: int | timedelta | None = None) -> None:  # noqa: ARG002  # pylint: disable=unused-argument
+        """Associate ``tags`` with ``key``."""
         if not tags:
             return
         k = self._ns + key
@@ -278,7 +371,7 @@ class SQLiteCache:
             )
 
     def invalidate_tags(self, tags: list[str]) -> int:
-        """Delete all keys associated with the given tags. Returns number removed."""
+        """Delete all keys associated with the given tags."""
         if not tags:
             return 0
         ns_tags = [self._ns + t for t in tags]
@@ -311,7 +404,7 @@ class SQLiteCache:
             return int(deleted or 0)
 
     # ---- Health / lifecycle ----
-    def ping(self) -> HealthStatus:
+    def health(self) -> HealthStatus:
         """Check health by running ``SELECT 1``."""
         try:
             with self._lock:
@@ -320,9 +413,20 @@ class SQLiteCache:
         except Exception:
             return {"healthy": False, "latency_ms": 0.0, "backend": "sqlite"}
 
+    def healthy(self) -> bool:
+        """Return ``True`` if the cache is healthy."""
+        return bool(self.health().get("healthy", False))
+
+    # Deprecated aliases
+    def ping(self) -> HealthStatus:
+        """Deprecated alias for :meth:`health`."""
+        warn_deprecated_method(name="ping", owner="SQLiteCache", replacement="health")
+        return self.health()
+
     def ping_ok(self) -> bool:
-        """Boolean health check."""
-        return bool(self.ping().get("healthy", False))
+        """Deprecated alias for :meth:`healthy`."""
+        warn_deprecated_method(name="ping_ok", owner="SQLiteCache", replacement="healthy")
+        return self.healthy()
 
     def close(self) -> None:
         """Close the SQLite connection."""
@@ -333,7 +437,7 @@ class SQLiteCache:
                 pass
 
     def get_stats(self) -> dict[str, Any] | None:
-        """Return None; middleware may override to provide stats."""
+        """Return ``None``; middleware may override."""
         return None
 
     # ---- Context manager ----
@@ -355,14 +459,12 @@ class SQLiteCache:
         return now_epoch() + seconds
 
     def _cleanup_if_expired(self, k: str) -> None:
-        """Delete a key in place if past its expires_at. Caller holds the lock."""
         self._conn.execute(
             "DELETE FROM cache_data WHERE key = ? AND expires_at IS NOT NULL AND expires_at <= ?",
             (k, now_epoch()),
         )
 
 
-# Sentinel for the "ttl <= 0 -> immediate delete" path out of _expires_at.
 _EXPIRE_IMMEDIATELY = object()
 
 
@@ -372,8 +474,6 @@ def _row_expired(row: tuple[Any, float | None]) -> bool:
 
 
 def _coerce_int(value: Any) -> int:
-    """Read a counter value back as int. SQLite stores the native int we wrote,
-    but serialized counters (bytes/str) are possible if the user mixed APIs."""
     if isinstance(value, int):
         return value
     if isinstance(value, bytes | bytearray):
@@ -385,7 +485,7 @@ def _coerce_int(value: Any) -> int:
 
 
 class _transaction:
-    """``BEGIN IMMEDIATE`` context manager that commits on success, rolls back on error."""
+    """``BEGIN IMMEDIATE`` context manager with commit/rollback semantics."""
 
     def __init__(self, conn: sqlite3.Connection) -> None:
         self._conn = conn

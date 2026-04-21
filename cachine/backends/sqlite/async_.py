@@ -3,10 +3,16 @@ from __future__ import annotations
 import asyncio
 import inspect
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, overload
 
 from cachine.core.types import HealthStatus
 from cachine.models.sqlite_config import SQLiteConfig
+from cachine.utils._deprecations import (
+    MISSING,
+    resolve_renamed_kwarg,
+    warn_deprecated_kwarg,
+    warn_deprecated_method,
+)
 from cachine.utils.helpers import to_seconds
 
 from ._schema import DDL_STATEMENTS, like_prefix_pattern, now_epoch
@@ -17,27 +23,82 @@ class AsyncSQLiteCache:
 
     Mirrors :class:`cachine.backends.sqlite.sync.SQLiteCache` with coroutine
     methods. ``aiosqlite`` serializes its own operations on a dedicated
-    worker thread, and an :class:`asyncio.Lock` guards our own multi-statement
-    transactions (incr, invalidate_tags) so they remain atomic.
-
-    Args:
-        config (SQLiteConfig): SQLite configuration.
-        namespace (str | None): Optional key namespace prefix.
-        serializer (Any | None): Default serializer (``dumps``/``loads``).
+    worker thread; an :class:`asyncio.Lock` guards our multi-statement
+    transactions (``incr``, ``invalidate_tags``).
     """
 
+    @overload
     def __init__(
         self,
         config: SQLiteConfig,
         *,
         namespace: str | None = None,
         serializer: Any | None = None,
+    ) -> None: ...
+
+    @overload
+    def __init__(
+        self,
+        *,
+        database: str = ":memory:",
+        timeout: float = 5.0,
+        busy_timeout_ms: int | None = 5000,
+        journal_mode: str | None = "WAL",
+        synchronous: str | None = "NORMAL",
+        check_same_thread: bool = False,
+        namespace: str | None = None,
+        serializer: Any | None = None,
+    ) -> None: ...
+
+    def __init__(
+        self,
+        config: SQLiteConfig | None = None,
+        *,
+        database: str | None = None,
+        timeout: float = 5.0,
+        busy_timeout_ms: int | None = 5000,
+        journal_mode: str | None = "WAL",
+        synchronous: str | None = "NORMAL",
+        check_same_thread: bool = False,
+        namespace: str | None = None,
+        serializer: Any | None = None,
     ) -> None:
+        if config is not None and database is not None:
+            raise TypeError("AsyncSQLiteCache: pass either `config` or `database=...` kwargs, not both")
+        if config is None:
+            config = SQLiteConfig(
+                database=database if database is not None else ":memory:",
+                timeout=timeout,
+                busy_timeout_ms=busy_timeout_ms,
+                journal_mode=journal_mode,
+                synchronous=synchronous,
+                check_same_thread=check_same_thread,
+            )
         self._config = config
         self._ns = f"{namespace}:" if namespace else ""
         self._serializer = serializer
         self._lock = asyncio.Lock()
         self._conn: Any = None
+
+    # ---- URL constructor ----
+    @classmethod
+    def from_url(
+        cls,
+        url: str,
+        *,
+        namespace: str | None = None,
+        serializer: Any | None = None,
+    ) -> AsyncSQLiteCache:
+        """Construct an :class:`AsyncSQLiteCache` from a ``sqlite://`` URL."""
+        from cachine.utils.sqlite_url import SQLiteURLParseError, parse_sqlite_url
+
+        scheme = url.split("://", 1)[0].lower() if "://" in url else ""
+        if scheme and scheme != "sqlite":
+            raise SQLiteURLParseError(
+                f"AsyncSQLiteCache.from_url received non-SQLite URL ({scheme!r}); use AsyncRedisCache.from_url for redis:// URLs"
+            )
+        config = parse_sqlite_url(url)
+        return cls(config, namespace=namespace, serializer=serializer)
 
     # ---- Connection setup ----
     async def _ensure_conn(self) -> Any:
@@ -45,8 +106,6 @@ class AsyncSQLiteCache:
         if conn is not None:
             return conn
         async with self._lock:
-            # Double-checked: another coroutine may have initialized while we
-            # were awaiting the lock.
             conn = self._conn
             if conn is not None:
                 return conn
@@ -82,8 +141,14 @@ class AsyncSQLiteCache:
             return conn
 
     # ---- Basic ops ----
-    async def get(self, key: str, default: Any = None, serializer: Any = None) -> Any:
-        """Get a value by key. Expired keys return ``default``."""
+    async def get(self, key: str, default: Any = None, *, serializer: Any = MISSING) -> Any:
+        """Get a value by key."""
+        if serializer is not MISSING:
+            warn_deprecated_kwarg(
+                name="serializer",
+                owner="AsyncSQLiteCache.get",
+                replacement="configure serializer on the cache constructor",
+            )
         k = self._ns + key
         conn = await self._ensure_conn()
         await self._cleanup_if_expired(conn, k)
@@ -92,7 +157,7 @@ class AsyncSQLiteCache:
         if row is None:
             return default
         raw = row[0]
-        ser = serializer or self._serializer
+        ser = serializer if serializer is not MISSING and serializer is not None else self._serializer
         if ser is not None and isinstance(raw, bytes | bytearray):
             try:
                 return ser.loads(bytes(raw))
@@ -100,10 +165,23 @@ class AsyncSQLiteCache:
                 return raw
         return raw
 
-    async def set(self, key: str, value: Any, ttl: int | timedelta | None = None, serializer: Any = None) -> None:
+    async def set(
+        self,
+        key: str,
+        value: Any,
+        *,
+        ttl: int | timedelta | None = None,
+        serializer: Any = MISSING,
+    ) -> None:
         """Store a value with optional TTL."""
+        if serializer is not MISSING:
+            warn_deprecated_kwarg(
+                name="serializer",
+                owner="AsyncSQLiteCache.set",
+                replacement="configure serializer on the cache constructor",
+            )
         k = self._ns + key
-        ser = serializer or self._serializer
+        ser = serializer if serializer is not MISSING and serializer is not None else self._serializer
         payload = ser.dumps(value) if ser is not None else value
         expires_at = self._expires_at(ttl)
         if expires_at is _EXPIRE_IMMEDIATELY:
@@ -117,7 +195,7 @@ class AsyncSQLiteCache:
         )
 
     async def delete(self, key: str) -> bool:
-        """Delete a key. Returns True if it existed."""
+        """Delete a key."""
         k = self._ns + key
         conn = await self._ensure_conn()
         cur = await conn.execute("DELETE FROM cache_data WHERE key = ?", (k,))
@@ -127,7 +205,7 @@ class AsyncSQLiteCache:
         return bool(rowcount)
 
     async def exists(self, key: str) -> bool:
-        """Return True if ``key`` exists and is not expired."""
+        """Return ``True`` if the key exists."""
         k = self._ns + key
         conn = await self._ensure_conn()
         await self._cleanup_if_expired(conn, k)
@@ -135,12 +213,21 @@ class AsyncSQLiteCache:
             row = await cur.fetchone()
         return row is not None
 
-    async def clear(self, dangerously_clear_all: bool = False) -> None:
+    async def clear(self, *, all: bool = False, dangerously_clear_all: Any = MISSING) -> None:
         """Clear keys in the current namespace or the whole database."""
+        force = resolve_renamed_kwarg(
+            old_name="dangerously_clear_all",
+            new_name="all",
+            old_value=dangerously_clear_all,
+            new_value=all,
+            owner="AsyncSQLiteCache.clear",
+            new_default=False,
+        )
+        force = bool(force) if force is not None else False
         conn = await self._ensure_conn()
-        if dangerously_clear_all or not self._ns:
-            if not dangerously_clear_all and not self._ns:
-                raise RuntimeError("clear() requires a namespace or set dangerously_clear_all=True")
+        if force or not self._ns:
+            if not force and not self._ns:
+                raise RuntimeError("clear() requires a namespace or pass all=True")
             await conn.execute("DELETE FROM cache_data")
             await conn.execute("DELETE FROM cache_tags")
             return
@@ -149,8 +236,15 @@ class AsyncSQLiteCache:
         await conn.execute("DELETE FROM cache_data WHERE key LIKE ? ESCAPE '\\'", (pattern,))
 
     # ---- Enrichment ----
-    async def get_or_set(self, key: str, factory: Any, ttl: int | timedelta | None = None, jitter: int | None = None) -> Any:  # pylint: disable=unused-argument
-        """Get the cached value or compute-and-set via ``factory``."""
+    async def get_or_set(  # pylint: disable=unused-argument
+        self,
+        key: str,
+        factory: Any,
+        *,
+        ttl: int | timedelta | None = None,
+        jitter: int | None = None,  # noqa: ARG002
+    ) -> Any:
+        """Get or compute-and-set a value."""
         sentinel = object()
         val = await self.get(key, default=sentinel)
         if val is not sentinel:
@@ -162,8 +256,8 @@ class AsyncSQLiteCache:
         return computed
 
     # ---- TTL management ----
-    async def expire(self, key: str, ttl: int | timedelta) -> bool:
-        """Set a relative TTL. ``ttl <= 0`` deletes the key."""
+    async def expire(self, key: str, *, ttl: int | timedelta) -> bool:
+        """Set a relative TTL."""
         k = self._ns + key
         seconds = to_seconds(ttl)
         if seconds is None:
@@ -180,7 +274,7 @@ class AsyncSQLiteCache:
         return bool(rowcount)
 
     async def expire_at(self, key: str, when: datetime) -> bool:
-        """Set an absolute expiration. Past timestamps delete the key."""
+        """Set an absolute expiration."""
         k = self._ns + key
         ts = when.timestamp() if when.tzinfo else when.replace(tzinfo=timezone.utc).timestamp()
         if ts <= now_epoch():
@@ -194,14 +288,14 @@ class AsyncSQLiteCache:
         await cur.close()
         return bool(rowcount)
 
-    async def touch(self, key: str, ttl: int | timedelta | None = None) -> bool:
-        """Refresh presence; with ``ttl`` also resets expiration."""
+    async def touch(self, key: str, *, ttl: int | timedelta | None = None) -> bool:
+        """Refresh presence; with ``ttl`` resets expiration."""
         if ttl is None:
             return await self.exists(key)
-        return await self.expire(key, ttl)
+        return await self.expire(key, ttl=ttl)
 
     async def ttl(self, key: str) -> int | None:
-        """Return remaining TTL in seconds, or None if key/TTL is missing."""
+        """Return remaining TTL in seconds."""
         k = self._ns + key
         conn = await self._ensure_conn()
         await self._cleanup_if_expired(conn, k)
@@ -213,7 +307,7 @@ class AsyncSQLiteCache:
         return remaining if remaining >= 0 else None
 
     async def persist(self, key: str) -> bool:
-        """Remove expiration from a key. Returns True if a TTL was cleared."""
+        """Remove expiration from a key."""
         k = self._ns + key
         conn = await self._ensure_conn()
         cur = await conn.execute(
@@ -225,10 +319,24 @@ class AsyncSQLiteCache:
         return bool(rowcount)
 
     # ---- Counters ----
-    async def incr(self, key: str, delta: int = 1, ttl_on_create: int | timedelta | None = None) -> int:
-        """Atomically add ``delta`` to an integer counter. ``ttl_on_create`` applies only on first create."""
+    async def incr(
+        self,
+        key: str,
+        *,
+        delta: int = 1,
+        ttl_if_new: int | timedelta | None = None,
+        ttl_on_create: Any = MISSING,
+    ) -> int:
+        """Atomically add ``delta`` to an integer counter."""
+        effective_ttl = resolve_renamed_kwarg(
+            old_name="ttl_on_create",
+            new_name="ttl_if_new",
+            old_value=ttl_on_create,
+            new_value=ttl_if_new,
+            owner="AsyncSQLiteCache.incr",
+        )
         k = self._ns + key
-        create_seconds = to_seconds(ttl_on_create)
+        create_seconds = to_seconds(effective_ttl) if effective_ttl is not None else None
         conn = await self._ensure_conn()
         async with self._lock:
             await conn.execute("BEGIN IMMEDIATE")
@@ -260,13 +368,13 @@ class AsyncSQLiteCache:
                     pass
                 raise
 
-    async def decr(self, key: str, delta: int = 1) -> int:
-        """Decrement an integer counter by ``delta``."""
+    async def decr(self, key: str, *, delta: int = 1) -> int:
+        """Decrement an integer counter."""
         return await self.incr(key, delta=-int(delta))
 
     # ---- Tags ----
-    async def add_tags(self, key: str, tags: list[str], ttl: int | timedelta | None = None) -> None:  # pylint: disable=unused-argument
-        """Associate ``tags`` with ``key``. ``ttl`` is accepted for parity and ignored."""
+    async def add_tags(self, key: str, tags: list[str], *, ttl: int | timedelta | None = None) -> None:  # noqa: ARG002  # pylint: disable=unused-argument
+        """Associate ``tags`` with ``key``."""
         if not tags:
             return
         k = self._ns + key
@@ -293,7 +401,7 @@ class AsyncSQLiteCache:
                 raise
 
     async def invalidate_tags(self, tags: list[str]) -> int:
-        """Delete all keys associated with the given tags. Returns number removed."""
+        """Delete all keys associated with the given tags."""
         if not tags:
             return 0
         ns_tags = [self._ns + t for t in tags]
@@ -340,8 +448,8 @@ class AsyncSQLiteCache:
                 raise
 
     # ---- Health / lifecycle ----
-    async def ping(self) -> HealthStatus:
-        """Check health by running ``SELECT 1``."""
+    async def health(self) -> HealthStatus:
+        """Return cache health status."""
         try:
             conn = await self._ensure_conn()
             async with conn.execute("SELECT 1") as cur:
@@ -350,10 +458,21 @@ class AsyncSQLiteCache:
         except Exception:
             return {"healthy": False, "latency_ms": 0.0, "backend": "sqlite"}
 
-    async def ping_ok(self) -> bool:
-        """Boolean health check."""
-        s = await self.ping()
+    async def healthy(self) -> bool:
+        """Return ``True`` if the cache is healthy."""
+        s = await self.health()
         return bool(s.get("healthy", False))
+
+    # Deprecated aliases
+    async def ping(self) -> HealthStatus:
+        """Deprecated alias for :meth:`health`."""
+        warn_deprecated_method(name="ping", owner="AsyncSQLiteCache", replacement="health")
+        return await self.health()
+
+    async def ping_ok(self) -> bool:
+        """Deprecated alias for :meth:`healthy`."""
+        warn_deprecated_method(name="ping_ok", owner="AsyncSQLiteCache", replacement="healthy")
+        return await self.healthy()
 
     async def close(self) -> None:
         """Close the underlying aiosqlite connection."""
@@ -366,7 +485,7 @@ class AsyncSQLiteCache:
         self._conn = None
 
     def get_stats(self) -> dict[str, Any] | None:
-        """Return None; middleware may override to provide stats."""
+        """Return ``None``; middleware may override."""
         return None
 
     # ---- Async context manager ----

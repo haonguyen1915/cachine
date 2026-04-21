@@ -167,19 +167,20 @@ result = expensive_computation(21)  # Returns immediately
 
 ### Step 3: Scale to Redis
 
-Share cache across multiple servers with Redis using the builder:
+Share cache across multiple servers. Pick one of three construction styles:
 
 ```python
-from cachine import CacheBuilder
+from cachine import RedisCache
 from cachine.decorators import cached
 from cachine.serializers import JSONSerializer
 
-# Create Redis cache from URL via builder
-cache = CacheBuilder.from_url(
-    "redis://localhost:6379/0",
-    namespace="myapp",             # Prefix all keys with "myapp:"
-    serializer=JSONSerializer(),   # Configure serializer
-).build()
+# (1) Kwargs — simplest for a single host
+cache = RedisCache(host="localhost", port=6379, namespace="myapp", serializer=JSONSerializer())
+
+# (2) URL — great when the connection string comes from an env var
+# cache = RedisCache.from_url("redis://localhost:6379/0", namespace="myapp", serializer=JSONSerializer())
+
+# (3) Config object — for cluster / sentinel / advanced tuning (see "Choosing the Right Backend")
 
 @cached(cache=cache, ttl=300)  # Cache for 5 minutes
 def get_user(user_id):
@@ -191,23 +192,19 @@ user = get_user(123)
 
 ### Step 4: Async Support
 
-Full async/await support for async applications, also using the builder:
+Full async/await support. Every backend has an async twin:
 
 ```python
 import asyncio
-from cachine import AsyncCacheBuilder
+from cachine import AsyncRedisCache
 from cachine.decorators import cached
 
-# Create async Redis cache from URL via builder
-cache = AsyncCacheBuilder.from_url(
-    "redis://localhost:6379/0",
-    namespace="myapp",
-).build()
+cache = AsyncRedisCache(host="localhost", port=6379, namespace="myapp")
+# or: AsyncRedisCache.from_url("redis://localhost:6379/0", namespace="myapp")
 
 @cached(cache=cache, ttl=60)
 async def fetch_data(item_id):
-    # Simulate async API call
-    await asyncio.sleep(1)
+    await asyncio.sleep(1)  # pretend this is an HTTP call
     return {"id": item_id, "data": "..."}
 
 async def main():
@@ -280,7 +277,7 @@ def check_rate_limit(user_id: str, max_requests: int = 100):
     key = f"ratelimit:{user_id}"
 
     # Increment counter, set TTL on first request
-    count = cache.incr(key, delta=1, ttl_on_create=60)
+    count = cache.incr(key, delta=1, ttl_if_new=60)
 
     if count > max_requests:
         raise Exception(f"Rate limit exceeded: {count}/{max_requests}")
@@ -369,28 +366,26 @@ Persistent cache stored in a single file — fills the gap between `InMemoryCach
 **Example (sync):**
 ```python
 from cachine import SQLiteCache
-from cachine.models import SQLiteConfig
 from cachine.serializers import JSONSerializer
 
 cache = SQLiteCache(
-    SQLiteConfig(database="/tmp/cache.db"),  # or ":memory:" for ephemeral
+    database="/tmp/cache.db",       # or ":memory:" for ephemeral
     namespace="myapp",
     serializer=JSONSerializer(),
 )
 
 cache.set("user:1", {"id": 1, "name": "Alice"}, ttl=300)
 cache.get("user:1")  # {'id': 1, 'name': 'Alice'}
+
+# URL form also works:
+# cache = SQLiteCache.from_url("sqlite:///tmp/cache.db", namespace="myapp")
 ```
 
 **Example (async, requires `aiosqlite`):**
 ```python
 from cachine import AsyncSQLiteCache
-from cachine.models import SQLiteConfig
 
-cache = AsyncSQLiteCache(
-    SQLiteConfig(database="/tmp/cache.db"),
-    namespace="myapp",
-)
+cache = AsyncSQLiteCache(database="/tmp/cache.db", namespace="myapp")
 
 await cache.set("k", b"v", ttl=60)
 await cache.get("k")  # b'v'
@@ -398,7 +393,7 @@ await cache.get("k")  # b'v'
 
 **Built-in features:**
 - WAL journal mode for concurrent readers/writers
-- Atomic counters via `BEGIN IMMEDIATE` transactions (`incr` / `decr` with `ttl_on_create`)
+- Atomic counters via `BEGIN IMMEDIATE` transactions (`incr` / `decr` with `ttl_if_new`)
 - Tag-based invalidation (`add_tags` / `invalidate_tags`)
 - Lazy TTL expiration on read
 - Namespace isolation (multiple caches can share the same file)
@@ -574,7 +569,7 @@ from cachine.middleware import MetricsMiddleware
 
 # Build an in-memory cache wrapped with metrics middleware
 cache = (
-    CacheBuilder.from_cache(InMemoryCache())
+    CacheBuilder(InMemoryCache())
     .add_middleware(MetricsMiddleware)
     .build()
 )
@@ -598,11 +593,11 @@ print(stats)
 
 Async usage:
 ```python
-from cachine import AsyncCacheBuilder
+from cachine import AsyncCacheBuilder, AsyncRedisCache
 from cachine.middleware import AsyncMetricsMiddleware
 
 cache = (
-    AsyncCacheBuilder.from_url("redis://localhost:6379/0")
+    AsyncCacheBuilder(AsyncRedisCache.from_url("redis://localhost:6379/0"))
     .add_middleware(AsyncMetricsMiddleware)
     .build()
 )
@@ -619,24 +614,21 @@ async def main():
 ```python
 from cachine import CacheBuilder, InMemoryCache
 from cachine.middleware import CompressionMiddleware
+from cachine.serializers import JSONSerializer
 
-# Use builder with a configured compression middleware
+# Configure serializer on the base cache; middleware picks it up automatically.
 cache = (
-    CacheBuilder.from_cache(InMemoryCache())
-    .add_middleware(lambda c: CompressionMiddleware(  # factory for configured middleware
-        c,
-        algorithm="gzip",  # or "zlib"
-        min_size=1024,     # Only compress values > 1KB
-    ))
+    CacheBuilder(InMemoryCache(serializer=JSONSerializer()))
+    .add_middleware(CompressionMiddleware, algorithm="gzip", min_size=1024)
     .build()
 )
 
 # Large values automatically compressed
 large_json = {"data": "x" * 10000}
-cache.set("big_data", large_json, serializer=JSONSerializer())
+cache.set("big_data", large_json)
 
 # Automatically decompressed on get
-result = cache.get("big_data", serializer=JSONSerializer())
+result = cache.get("big_data")
 ```
 
 ### 🔐 Encrypt Sensitive Data
@@ -646,12 +638,12 @@ from cachine import CacheBuilder, InMemoryCache
 from cachine.middleware import EncryptionMiddleware
 
 cache = (
-    CacheBuilder.from_cache(InMemoryCache())
-    .add_middleware(lambda c: EncryptionMiddleware(
-        c,
+    CacheBuilder(InMemoryCache())
+    .add_middleware(
+        EncryptionMiddleware,
         key="your-32-character-secret-key!!",  # Keep this secret!
         key_id="v1",  # For key rotation
-    ))
+    )
     .build()
 )
 
@@ -669,13 +661,12 @@ Ensure your app still works when Redis is down. Wrap caches with a fail‑open m
 
 Sync:
 ```python
-from cachine import CacheBuilder
+from cachine import CacheBuilder, RedisCache
 from cachine.decorators import cached
-from cachine.middleware.fail_open import FailOpenMiddleware
+from cachine.middleware import FailOpenMiddleware
 
-# Build sync Redis cache wrapped with fail-open middleware
 cache = (
-    CacheBuilder.from_url("redis://localhost:6379/0", namespace="myapp")
+    CacheBuilder(RedisCache.from_url("redis://localhost:6379/0", namespace="myapp"))
     .add_middleware(FailOpenMiddleware)
     .build()
 )
@@ -686,13 +677,12 @@ def compute(x):
 ```
 Async:
 ```python
-from cachine import AsyncCacheBuilder
+from cachine import AsyncCacheBuilder, AsyncRedisCache
 from cachine.decorators import cached
-from cachine.middleware.fail_open import AsyncFailOpenMiddleware
+from cachine.middleware import AsyncFailOpenMiddleware
 
-# Build async Redis cache wrapped with fail-open middleware in one go
 cache = (
-    AsyncCacheBuilder.from_url("redis://localhost:6379/0", namespace="myapp")
+    AsyncCacheBuilder(AsyncRedisCache.from_url("redis://localhost:6379/0", namespace="myapp"))
     .add_middleware(AsyncFailOpenMiddleware)
     .build()
 )
@@ -712,33 +702,34 @@ from cachine.middleware import CompressionMiddleware, EncryptionMiddleware, Metr
 from cachine.serializers import JSONSerializer
 
 cache = (
-    CacheBuilder.from_cache(InMemoryCache(namespace="secure"))
+    CacheBuilder(InMemoryCache(namespace="secure", serializer=JSONSerializer()))
     # Layer 1 (inner): Compress before encryption
-    .add_middleware(lambda c: CompressionMiddleware(c, algorithm="gzip", min_size=128))
+    .add_middleware(CompressionMiddleware, algorithm="gzip", min_size=128)
     # Layer 2: Encrypt compressed data
-    .add_middleware(lambda c: EncryptionMiddleware(c, key="your-secret-key-here!!", key_id="v1"))
+    .add_middleware(EncryptionMiddleware, key="your-secret-key-here!!", key_id="v1")
     # Layer 3 (outer): Metrics tracks everything
     .add_middleware(MetricsMiddleware)
     .build()
 )
 
 # Now you have: Metrics → Encryption → Compression → InMemory
-cache.set("sensitive_data", {"secret": "data"}, serializer=JSONSerializer())
-value = cache.get("sensitive_data", serializer=JSONSerializer())
+cache.set("sensitive_data", {"secret": "data"})
+value = cache.get("sensitive_data")
 print(cache.get_stats())  # See metrics
 ```
 
 ### 🧱 Build Caches Fluently (Builder)
 
-Compose middleware layers clearly and lazily:
+`CacheBuilder` and `AsyncCacheBuilder` compose middleware chains. Pass the
+backend (sync or async) as the constructor argument and stack layers:
 
 Sync:
 ```python
-from cachine import CacheBuilder
+from cachine import CacheBuilder, RedisCache
 from cachine.middleware import MetricsMiddleware
 
 cache = (
-    CacheBuilder.from_url("redis://localhost:6379/0", namespace="myapp")
+    CacheBuilder(RedisCache.from_url("redis://localhost:6379/0", namespace="myapp"))
     .add_middleware(MetricsMiddleware)  # first added = inner; last = outer
     .build()
 )
@@ -746,24 +737,28 @@ cache = (
 
 Async:
 ```python
-from cachine import AsyncCacheBuilder
+from cachine import AsyncCacheBuilder, AsyncRedisCache
 from cachine.middleware import AsyncMetricsMiddleware, MetricsMiddleware
 
-# You can add async middleware directly, or add a known sync middleware
-# and the builder will map it to its async counterpart where available.
+# Sync middleware classes are auto-mapped to their async counterparts
+# when the builder recognises them (Metrics, FailOpen).
 acache = (
-    AsyncCacheBuilder.from_url("redis://localhost:6379/0", namespace="myapp")
+    AsyncCacheBuilder(AsyncRedisCache.from_url("redis://localhost:6379/0", namespace="myapp"))
     .add_middleware(MetricsMiddleware)        # mapped to AsyncMetricsMiddleware
     # .add_middleware(AsyncMetricsMiddleware) # explicit async class also works
     .build()
 )
 ```
 
-Use with the decorator lazily without early initialization:
+Use the builder lazily by passing a factory:
 ```python
+from cachine import CacheBuilder, RedisCache
 from cachine.decorators import cached
 
-builder = CacheBuilder.from_url("redis://localhost:6379/0")
+def _factory():
+    return RedisCache.from_url("redis://localhost:6379/0")
+
+builder = CacheBuilder(_factory)
 
 @cached(cache=builder.as_factory(), ttl=60)
 def compute(x):
@@ -777,8 +772,8 @@ def compute(x):
 Convert Python objects to bytes for Redis storage:
 
 ```python
-from cachine.serializers import JSONSerializer, PickleSerializer, MsgPackSerializer
-from caching.backends.redis.sync import RedisCache
+from cachine import RedisCache
+from cachine.serializers import JSONSerializer, MsgPackSerializer, PickleSerializer
 
 # JSON: Safe, human-readable, limited types
 cache = RedisCache(host="localhost", serializer=JSONSerializer())
@@ -790,7 +785,7 @@ cache.set("data", {"complex": "object"})
 
 # Pickle: All Python types, but UNSAFE for untrusted data
 cache = RedisCache(host="localhost", serializer=PickleSerializer())
-cache.set("data", any_python_object)
+cache.set("data", {"any": "python object"})
 ```
 
 **Comparison:**
@@ -807,71 +802,76 @@ cache.set("data", any_python_object)
 
 ## Configuration & Factory
 
-### Builders from URLs
+### Constructing from URLs
 
-Create cache instances using connection URLs via builders:
+Each backend exposes a ``from_url`` classmethod — use it when your
+connection string comes from an env var or secret manager. The URL scheme
+uniquely identifies the backend, so code stays grep-able:
 
 ```python
-from cachine import CacheBuilder, AsyncCacheBuilder
+from cachine import RedisCache, AsyncRedisCache, SQLiteCache, AsyncSQLiteCache
 
-# Sync Redis cache
-cache = CacheBuilder.from_url("redis://localhost:6379/0", namespace="myapp").build()
+# Sync Redis
+cache = RedisCache.from_url("redis://localhost:6379/0", namespace="myapp")
 
-# Async Redis cache
-async_cache = AsyncCacheBuilder.from_url("redis://localhost:6379/0", namespace="myapp").build()
+# Async Redis
+async_cache = AsyncRedisCache.from_url("redis://localhost:6379/0", namespace="myapp")
 
 # With authentication
-cache = CacheBuilder.from_url("redis://user:password@localhost:6379/0", namespace="myapp").build()
+cache = RedisCache.from_url("redis://user:password@localhost:6379/0", namespace="myapp")
 
 # With SSL/TLS
-cache = CacheBuilder.from_url("rediss://localhost:6379/0", namespace="myapp").build()
+cache = RedisCache.from_url("rediss://localhost:6379/0", namespace="myapp")
 
 # Redis Cluster
-cache = CacheBuilder.from_url("redis://node1:7000,node2:7001,node3:7002", namespace="myapp").build()
+cache = RedisCache.from_url("redis://node1:7000,node2:7001,node3:7002", namespace="myapp")
 
 # Redis Sentinel
-cache = CacheBuilder.from_url(
+cache = RedisCache.from_url(
     "redis+sentinel://mymaster/0?sentinels=s1:26379,s2:26379",
     namespace="myapp",
-).build()
+)
 
 # SQLite (file-backed, persistent)
-cache = CacheBuilder.from_url("sqlite:///tmp/cache.db", namespace="myapp").build()
+cache = SQLiteCache.from_url("sqlite:///tmp/cache.db", namespace="myapp")
 
 # SQLite (in-memory, ephemeral)
-cache = CacheBuilder.from_url("sqlite:///:memory:", namespace="myapp").build()
+cache = SQLiteCache.from_url("sqlite:///:memory:", namespace="myapp")
 
 # SQLite with tuning parameters
-cache = CacheBuilder.from_url(
+cache = SQLiteCache.from_url(
     "sqlite:///tmp/cache.db?timeout=10&busy_timeout=3000&journal_mode=WAL&synchronous=NORMAL",
     namespace="myapp",
-).build()
+)
+
+# Async SQLite mirrors the sync API
+async_cache = AsyncSQLiteCache.from_url("sqlite:///tmp/cache.db", namespace="myapp")
 ```
 
 ### URL Parameters
 
-Configure connection behavior via URL query parameters:
+Configure connection behaviour via URL query parameters:
 
 ```python
-from cachine import CacheBuilder
+from cachine import RedisCache
 
 # Timeout configuration
-cache = CacheBuilder.from_url(
+cache = RedisCache.from_url(
     "redis://localhost:6379/0?"
     "socket_timeout=5.0&"              # Read/write timeout (seconds)
     "socket_connect_timeout=2.0&"      # Initial connection timeout
     "retry_on_timeout=true&"           # Retry on timeout
     "decode_responses=true",           # Decode Redis responses to str
     namespace="myapp",
-).build()
+)
 
 # Cluster with SSL and timeouts
-cache = CacheBuilder.from_url(
+cache = RedisCache.from_url(
     "rediss://user:pass@node1:7000,node2:7001?"
     "socket_timeout=10&"
     "retry_on_timeout=1",
     namespace="myapp",
-).build()
+)
 ```
 
 ---
@@ -943,12 +943,8 @@ from cachine import CacheBuilder
 from cachine.middleware import CompressionMiddleware
 
 cache = (
-    CacheBuilder.from_cache(base_cache)
-    .add_middleware(lambda c: CompressionMiddleware(
-        c,
-        algorithm="gzip",
-        min_size=1024,  # Only compress > 1KB (avoid overhead on small values)
-    ))
+    CacheBuilder(base_cache)
+    .add_middleware(CompressionMiddleware, algorithm="gzip", min_size=1024)  # Only compress > 1KB
     .build()
 )
 ```
@@ -986,13 +982,13 @@ prod_cache = RedisCache(host="prod-redis", namespace="prod")
 
 ```python
 # Test connection
-if cache.ping_ok():
+if cache.healthy():
     print("✅ Connected to Redis")
 else:
     print("❌ Cannot connect to Redis")
 
 # Full health check
-health = cache.ping()
+health = cache.health()
 print(health)  # {'healthy': True, 'latency_ms': 1.2, 'backend': 'redis'}
 
 # Tune client timeouts (sync/async)
@@ -1006,16 +1002,25 @@ arc = AsyncRedisCache(host="localhost", socket_timeout=2.5, socket_connect_timeo
 
 **Error:** `JSONDecodeError` or `PickleError`
 
-**Solution:** Make sure you use the same serializer for get/set:
+**Solution:** configure a single serializer at the cache level — don't switch
+serializers mid-flight. The old per-call ``serializer=`` kwarg on
+``get``/``set`` is deprecated:
 
 ```python
-# ❌ Wrong: Different serializers
-cache.set("key", data, serializer=JSONSerializer())
-result = cache.get("key", serializer=PickleSerializer())  # Error!
+# ❌ Don't switch serializers for the same key
+from cachine import RedisCache
+from cachine.serializers import JSONSerializer, PickleSerializer
 
-# ✅ Correct: Same serializer
-cache.set("key", data, serializer=JSONSerializer())
-result = cache.get("key", serializer=JSONSerializer())
+json_cache = RedisCache(host="localhost", serializer=JSONSerializer())
+pickle_cache = RedisCache(host="localhost", serializer=PickleSerializer())
+
+json_cache.set("key", data)
+pickle_cache.get("key")  # Error: encoded with JSON, decoded with Pickle
+
+# ✅ Pick one serializer per cache instance and stick with it
+cache = RedisCache(host="localhost", serializer=JSONSerializer())
+cache.set("key", data)
+cache.get("key")
 ```
 
 ### Missing Dependencies
@@ -1034,13 +1039,13 @@ pip install msgpack
 ### Cache Not Clearing
 
 ```python
-# Requires namespace OR dangerously_clear_all=True
+# Requires namespace OR all=True
 cache = InMemoryCache(namespace="myapp")
-cache.clear()  # ✅ Works
+cache.clear()  # ✅ Works — only clears keys in "myapp"
 
 cache = InMemoryCache()  # No namespace
 cache.clear()  # ❌ Raises error (safety check)
-cache.clear(dangerously_clear_all=True)  # ✅ Works but clears EVERYTHING
+cache.clear(all=True)  # ✅ Clears EVERYTHING
 ```
 
 ---
@@ -1065,7 +1070,7 @@ cache.persist(key)                # Remove TTL (never expires)
 cache.touch(key, ttl=None)        # Update last access time, optionally set TTL
 
 # Counters
-cache.incr(key, delta=1, ttl_on_create=None)
+cache.incr(key, delta=1, ttl_if_new=None)
 cache.decr(key, delta=1)
 
 # Tags
@@ -1074,8 +1079,8 @@ cache.add_tags(key, tags)         # Add tags to existing entry
 
 # Utility
 cache.get_or_set(key, factory, ttl=None)  # Get cached or compute & cache
-cache.ping()                      # Health check
-cache.ping_ok()                   # Boolean health check
+cache.health()                    # Health status dict
+cache.healthy()                   # Boolean shortcut
 cache.close()                     # Close connections
 ```
 

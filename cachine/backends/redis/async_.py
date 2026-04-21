@@ -5,35 +5,34 @@ import inspect
 import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Any, cast
+from typing import Any, cast, overload
 
 from cachine.core.types import HealthStatus
-from cachine.models.redis_config import RedisClusterConfig, RedisConfig, RedisSentinelConfig, RedisSingleConfig
+from cachine.exceptions import RedisURLParseError
+from cachine.models.redis_config import (
+    RedisClusterConfig,
+    RedisConfig,
+    RedisSentinelConfig,
+    RedisSingleConfig,
+)
+from cachine.utils._deprecations import (
+    MISSING,
+    resolve_renamed_kwarg,
+    warn_deprecated_kwarg,
+    warn_deprecated_method,
+)
 from cachine.utils.helpers import to_seconds
 
 
 class AsyncRedisCache:
     """Async Redis cache with TTL, counters, and tags.
 
-    Mirrors :class:`cachine.backends.redis.sync.RedisCache` with ``async``/``await``
-    operations using ``redis.asyncio``.
-
-    Args:
-        config (RedisConfig): Redis configuration object (RedisSingleConfig, RedisClusterConfig, or RedisSentinelConfig).
-        namespace (str | None): Optional namespace prefix.
-        serializer (Any | None): Default serializer for values.
-        pubsub_channel (str | None): Pub/Sub channel for tag invalidation events. Defaults to "cachine:invalidate".
-        auto_publish_invalidations (bool): Automatically publish tag invalidation events. Defaults to False.
-
-    Examples:
-        >>> from cachine.models.redis_config import RedisSingleConfig
-        >>> config = RedisSingleConfig(host="localhost", port=6379, db=0)
-        >>> cache = AsyncRedisCache(config, namespace="myapp")
-        >>> await cache.set("key", "value", ttl=60)
-        >>> await cache.get("key")
-        'value'
+    Mirrors :class:`cachine.backends.redis.sync.RedisCache` using
+    ``redis.asyncio``. Supports kwargs shortcut for single-instance and a
+    config object for Cluster/Sentinel topologies.
     """
 
+    @overload
     def __init__(
         self,
         config: RedisConfig,
@@ -42,10 +41,66 @@ class AsyncRedisCache:
         serializer: Any | None = None,
         pubsub_channel: str | None = "cachine:invalidate",
         auto_publish_invalidations: bool = False,
+    ) -> None: ...
+
+    @overload
+    def __init__(
+        self,
+        *,
+        host: str,
+        port: int = 6379,
+        db: int = 0,
+        password: str | None = None,
+        username: str | None = None,
+        ssl: bool = False,
+        socket_timeout: float | None = None,
+        socket_connect_timeout: float | None = None,
+        retry_on_timeout: bool = False,
+        decode_responses: bool = False,
+        namespace: str | None = None,
+        serializer: Any | None = None,
+        pubsub_channel: str | None = "cachine:invalidate",
+        auto_publish_invalidations: bool = False,
+    ) -> None: ...
+
+    def __init__(
+        self,
+        config: RedisConfig | None = None,
+        *,
+        host: str | None = None,
+        port: int = 6379,
+        db: int = 0,
+        password: str | None = None,
+        username: str | None = None,
+        ssl: bool = False,
+        socket_timeout: float | None = None,
+        socket_connect_timeout: float | None = None,
+        retry_on_timeout: bool = False,
+        decode_responses: bool = False,
+        namespace: str | None = None,
+        serializer: Any | None = None,
+        pubsub_channel: str | None = "cachine:invalidate",
+        auto_publish_invalidations: bool = False,
     ) -> None:
-        # Client attribute (runtime async redis client)
+        if config is not None and host is not None:
+            raise TypeError("AsyncRedisCache: pass either `config` or `host=...` kwargs, not both")
+        if config is None:
+            if host is None:
+                host = "localhost"
+            config = RedisSingleConfig(
+                host=host,
+                port=port,
+                db=db,
+                password=password,
+                username=username,
+                ssl=ssl,
+                socket_timeout=socket_timeout,
+                socket_connect_timeout=socket_connect_timeout,
+                retry_on_timeout=retry_on_timeout,
+                decode_responses=decode_responses,
+            )
+
         self._client: Any
-        # Create appropriate client based on config type
         if isinstance(config, RedisSingleConfig):
             self._client = self._create_single_client(config)
         elif isinstance(config, RedisClusterConfig):
@@ -61,24 +116,49 @@ class AsyncRedisCache:
         self._pubsub_channel = pubsub_channel
         self._auto_publish_invalidations = auto_publish_invalidations
 
-    # Basic ops
-    async def get(self, key: str, default: Any = None, serializer: Any = None) -> Any:
-        """Get a value by key.
+    # ---- URL constructor ----
+    @classmethod
+    def from_url(
+        cls,
+        url: str,
+        *,
+        namespace: str | None = None,
+        serializer: Any | None = None,
+        pubsub_channel: str | None = "cachine:invalidate",
+        auto_publish_invalidations: bool = False,
+    ) -> AsyncRedisCache:
+        """Construct an :class:`AsyncRedisCache` from a Redis connection URL."""
+        from cachine.utils.redis_url import parse_redis_url
 
-        Args:
-            key (str): Cache key.
-            default (Any, optional): Value to return if key is missing.
-            serializer (Any, optional): Serializer to decode bytes; defaults to instance serializer.
+        scheme = url.split("://", 1)[0].lower() if "://" in url else ""
+        if scheme and not scheme.startswith("redis"):
+            raise RedisURLParseError(
+                f"AsyncRedisCache.from_url received non-Redis URL ({scheme!r}); use AsyncSQLiteCache.from_url for sqlite:// URLs"
+            )
+        config = parse_redis_url(url)
+        return cls(
+            config,
+            namespace=namespace,
+            serializer=serializer,
+            pubsub_channel=pubsub_channel,
+            auto_publish_invalidations=auto_publish_invalidations,
+        )
 
-        Returns:
-            Any: Decoded value or ``default``.
-        """
+    # ---- Basic ops ----
+    async def get(self, key: str, default: Any = None, *, serializer: Any = MISSING) -> Any:
+        """Get a value by key."""
+        if serializer is not MISSING:
+            warn_deprecated_kwarg(
+                name="serializer",
+                owner="AsyncRedisCache.get",
+                replacement="configure serializer on the cache constructor",
+            )
         k = self._ns + key
         client = self._client
         raw = await client.get(k)
         if raw is None:
             return default
-        ser = serializer or self._serializer
+        ser = serializer if serializer is not MISSING and serializer is not None else self._serializer
         if ser is not None:
             try:
                 return ser.loads(raw)
@@ -86,50 +166,39 @@ class AsyncRedisCache:
                 return raw
         return raw
 
-    async def set(self, key: str, value: Any, ttl: int | timedelta | None = None, serializer: Any = None) -> None:
-        """Set a value by key.
-
-        Args:
-            key (str): Cache key.
-            value (Any): Value to store.
-            ttl (int | timedelta | None): Optional time-to-live.
-            serializer (Any, optional): Serializer to encode value; defaults to instance serializer.
-
-        Returns:
-            None
-        """
+    async def set(
+        self,
+        key: str,
+        value: Any,
+        *,
+        ttl: int | timedelta | None = None,
+        serializer: Any = MISSING,
+    ) -> None:
+        """Set a value by key."""
+        if serializer is not MISSING:
+            warn_deprecated_kwarg(
+                name="serializer",
+                owner="AsyncRedisCache.set",
+                replacement="configure serializer on the cache constructor",
+            )
         k = self._ns + key
         client = self._client
-        ser = serializer or self._serializer
+        ser = serializer if serializer is not MISSING and serializer is not None else self._serializer
         payload = ser.dumps(value) if ser is not None else value
-        seconds = int(ttl.total_seconds()) if isinstance(ttl, timedelta) else (int(ttl) if ttl is not None else None)
+        seconds = to_seconds(ttl)
         if seconds is not None:
-            await client.set(k, payload, ex=seconds)
+            await client.set(k, payload, ex=int(seconds))
         else:
             await client.set(k, payload)
 
     async def delete(self, key: str) -> bool:
-        """Delete a key.
-
-        Args:
-            key (str): Cache key.
-
-        Returns:
-            bool: True if key existed.
-        """
+        """Delete a key."""
         k = self._ns + key
         client = self._client
         return bool(await client.delete(k))
 
     async def exists(self, key: str) -> bool:
-        """Check key existence.
-
-        Args:
-            key (str): Cache key.
-
-        Returns:
-            bool: True if key exists.
-        """
+        """Check key existence."""
         k = self._ns + key
         client = self._client
         res = await client.exists(k)
@@ -138,32 +207,31 @@ class AsyncRedisCache:
         except Exception:
             return bool(res)
 
-    async def clear(self, dangerously_clear_all: bool = False) -> None:
-        """Clear keys in namespace or flush DB.
-
-        Args:
-            dangerously_clear_all (bool): When True, flushes the entire DB. When False,
-                requires a namespace and removes only keys in that namespace.
-
-        Returns:
-            None
-        """
+    async def clear(self, *, all: bool = False, dangerously_clear_all: Any = MISSING) -> None:
+        """Clear keys in the current namespace or flush the DB."""
+        force = resolve_renamed_kwarg(
+            old_name="dangerously_clear_all",
+            new_name="all",
+            old_value=dangerously_clear_all,
+            new_value=all,
+            owner="AsyncRedisCache.clear",
+            new_default=False,
+        )
+        force = bool(force) if force is not None else False
         client = self._client
-        if dangerously_clear_all:
+        if force:
             try:
                 await client.flushdb()
             except Exception:
                 pass
             return
         if not self._ns:
-            raise RuntimeError("clear() requires a namespace or set dangerously_clear_all=True")
+            raise RuntimeError("clear() requires a namespace or pass all=True")
         pattern = f"{self._ns}*"
-        keys = []
+        keys: list[str] = []
         try:
             async for k in client.scan_iter(match=pattern):
-                if isinstance(k, bytes | bytearray):
-                    k = k.decode("utf-8")
-                keys.append(k)
+                keys.append(k.decode("utf-8") if isinstance(k, bytes | bytearray) else k)
         except Exception:
             keys = []
         if keys:
@@ -180,19 +248,16 @@ class AsyncRedisCache:
                     except Exception:
                         pass
 
-    # Enrichment
-    async def get_or_set(self, key: str, factory: Any, ttl: int | timedelta | None = None, jitter: int | None = None) -> Any:  # pylint: disable=unused-argument
-        """Get or compute-and-set a value.
-
-        Args:
-            key (str): Cache key.
-            factory (Any): Callable or value used to compute when missing.
-            ttl (int | timedelta | None): Optional TTL for the stored value.
-            jitter (int | None): Ignored by this implementation.
-
-        Returns:
-            Any: Existing value if present; otherwise the computed value.
-        """
+    # ---- Enrichment ----
+    async def get_or_set(  # pylint: disable=unused-argument
+        self,
+        key: str,
+        factory: Any,
+        *,
+        ttl: int | timedelta | None = None,
+        jitter: int | None = None,  # noqa: ARG002
+    ) -> Any:
+        """Get or compute-and-set a value."""
         sentinel = object()
         val = await self.get(key, default=sentinel)
         if val is not sentinel:
@@ -203,17 +268,9 @@ class AsyncRedisCache:
         await self.set(key, computed, ttl=ttl)
         return computed
 
-    # TTL management
-    async def expire(self, key: str, ttl: int | timedelta) -> bool:
-        """Set a relative expiration.
-
-        Args:
-            key (str): Cache key.
-            ttl (int | timedelta): Relative TTL; ``<= 0`` deletes the key.
-
-        Returns:
-            bool: True on success (including deletion when ttl <= 0).
-        """
+    # ---- TTL management ----
+    async def expire(self, key: str, *, ttl: int | timedelta) -> bool:
+        """Set a relative expiration."""
         k = self._ns + key
         client = self._client
         seconds = int(ttl.total_seconds()) if isinstance(ttl, timedelta) else int(ttl)
@@ -223,31 +280,14 @@ class AsyncRedisCache:
         return bool(await client.expire(k, seconds))
 
     async def expire_at(self, key: str, when: datetime) -> bool:
-        """Set an absolute expiration (UTC).
-
-        Args:
-            key (str): Cache key.
-            when (datetime): Absolute UTC expiration time.
-
-        Returns:
-            bool: True if expiration was set.
-        """
+        """Set an absolute expiration."""
         k = self._ns + key
         client = self._client
         ts = int(when.timestamp())
         return bool(await client.expireat(k, ts))
 
-    async def touch(self, key: str, ttl: int | timedelta | None = None) -> bool:
-        """Refresh presence or set a new TTL.
-
-        Args:
-            key (str): Cache key.
-            ttl (int | timedelta | None): Optional TTL to set; when None, attempts
-                a TOUCH operation or falls back to existence check.
-
-        Returns:
-            bool: True if key exists (and TTL was updated when provided).
-        """
+    async def touch(self, key: str, *, ttl: int | timedelta | None = None) -> bool:
+        """Refresh presence or set a new TTL."""
         k = self._ns + key
         client = self._client
         if ttl is None:
@@ -262,14 +302,7 @@ class AsyncRedisCache:
         return bool(await client.expire(k, seconds))
 
     async def ttl(self, key: str) -> int | None:
-        """Get remaining TTL.
-
-        Args:
-            key (str): Cache key.
-
-        Returns:
-            int | None: Remaining seconds; None if no TTL or missing.
-        """
+        """Get remaining TTL."""
         k = self._ns + key
         client = self._client
         res = await client.ttl(k)
@@ -277,24 +310,14 @@ class AsyncRedisCache:
             val = int(res)
         except Exception:
             return None
-        if val < 0:
-            return None
-        return val
+        return val if val >= 0 else None
 
     async def persist(self, key: str) -> bool:
-        """Remove expiration from a key.
-
-        Args:
-            key (str): Cache key.
-
-        Returns:
-            bool: True if TTL existed and was removed.
-        """
+        """Remove expiration from a key."""
         k = self._ns + key
         client = self._client
         try:
-            res = await client.persist(k)
-            return bool(res)
+            return bool(await client.persist(k))
         except Exception:
             ttl = await client.ttl(k)
             if ttl is None or (isinstance(ttl, int) and ttl < 0):
@@ -305,23 +328,28 @@ class AsyncRedisCache:
                 pass
             return True
 
-    # Counters
-    async def incr(self, key: str, delta: int = 1, ttl_on_create: int | timedelta | None = None) -> int:
-        """Increment an integer value by ``delta``.
-
-        Args:
-            key (str): Cache key.
-            delta (int): Increment amount.
-            ttl_on_create (int | timedelta | None): TTL applied only on creation.
-
-        Returns:
-            int: The new integer value.
-        """
+    # ---- Counters ----
+    async def incr(
+        self,
+        key: str,
+        *,
+        delta: int = 1,
+        ttl_if_new: int | timedelta | None = None,
+        ttl_on_create: Any = MISSING,
+    ) -> int:
+        """Increment an integer counter by ``delta``."""
+        effective_ttl = resolve_renamed_kwarg(
+            old_name="ttl_on_create",
+            new_name="ttl_if_new",
+            old_value=ttl_on_create,
+            new_value=ttl_if_new,
+            owner="AsyncRedisCache.incr",
+        )
         k = self._ns + key
         client = self._client
-        if ttl_on_create is None:
+        if effective_ttl is None:
             return int(await client.incrby(k, int(delta)))
-        pexpire_ms = int(ttl_on_create.total_seconds() * 1000) if isinstance(ttl_on_create, timedelta) else int(ttl_on_create) * 1000
+        pexpire_ms = int(effective_ttl.total_seconds() * 1000) if isinstance(effective_ttl, timedelta) else int(effective_ttl) * 1000
         script = (
             "local exists = redis.call('EXISTS', KEYS[1])\n"
             "local val = redis.call('INCRBY', KEYS[1], ARGV[1])\n"
@@ -342,29 +370,13 @@ class AsyncRedisCache:
                     await client.expire(k, max(pexpire_ms // 1000, 1))
             return val
 
-    async def decr(self, key: str, delta: int = 1) -> int:
-        """Decrement an integer value.
-
-        Args:
-            key (str): Cache key.
-            delta (int): Decrement amount.
-
-        Returns:
-            int: The new integer value.
-        """
+    async def decr(self, key: str, *, delta: int = 1) -> int:
+        """Decrement an integer counter."""
         return await self.incr(key, delta=-int(delta))
 
-    # Tags
+    # ---- Tags ----
     async def invalidate_tags(self, tags: list[str], publish: bool | None = None) -> int:
-        """Invalidate keys by tags.
-
-        Args:
-            tags (list[str]): Tags to invalidate.
-            publish (bool | None): Whether to publish invalidation event. If None, uses auto_publish_invalidations setting.
-
-        Returns:
-            int: Number of keys deleted across all tags.
-        """
+        """Invalidate keys by tags."""
         client = self._client
         deleted = 0
         for tag in tags:
@@ -385,55 +397,32 @@ class AsyncRedisCache:
             except Exception:
                 pass
 
-        # Publish invalidation event if enabled
         should_publish = publish if publish is not None else self._auto_publish_invalidations
         if should_publish and self._pubsub_channel:
             await self.publish_invalidation(tags)
 
         return deleted
 
-    async def add_tags(self, key: str, tags: list[str], ttl: int | timedelta | None = None) -> None:
-        """Associate tags with a key.
-
-        Args:
-            key (str): Stored cache key.
-            tags (list[str]): Tags to associate.
-            ttl (int | timedelta | None): Optional TTL for tag associations.
-                If provided, tag sets will expire after this duration.
-
-        Returns:
-            None
-        """
+    async def add_tags(self, key: str, tags: list[str], *, ttl: int | timedelta | None = None) -> None:
+        """Associate ``tags`` with a key."""
         client = self._client
         k = self._ns + key
         ttl_seconds = to_seconds(ttl) if ttl is not None else None
 
         for tag in tags:
-            tkey = f"{self._ns}tag:{tag}"  # Consistent with sync version
+            tkey = f"{self._ns}tag:{tag}"
             try:
                 await client.sadd(tkey, k)
-                # Set TTL on tag set if provided
                 if ttl_seconds is not None and ttl_seconds > 0:
                     await client.expire(tkey, int(ttl_seconds))
             except Exception:
                 pass
 
-    # Pub/Sub
+    # ---- Pub/Sub ----
     async def publish_invalidation(self, tags: list[str]) -> None:
-        """Publish a tag invalidation event to the Pub/Sub channel.
-
-        Args:
-            tags (list[str]): Tags to include in the invalidation event.
-
-        Returns:
-            None
-
-        Examples:
-            >>> await cache.publish_invalidation(["user:123", "product:456"])
-        """
+        """Publish a tag invalidation event."""
         if not self._pubsub_channel:
             return
-
         payload = {
             "type": "invalidate_tags",
             "namespace": self._ns.rstrip(":") if self._ns else None,
@@ -451,29 +440,10 @@ class AsyncRedisCache:
         *,
         channel: str | None = None,
     ) -> None:
-        """Subscribe to tag invalidation events and process them with a handler.
-
-        This is a blocking operation that listens for invalidation events on the
-        Pub/Sub channel and invokes the handler for each valid event.
-
-        Args:
-            handler (Callable[[dict[str, Any]], Any]): Function called with each event.
-                Can be sync or async. Receives event dict with keys: type, namespace, tags.
-            channel (str | None): Override the Pub/Sub channel. Uses instance channel if None.
-
-        Returns:
-            None
-
-        Examples:
-            >>> async def handle_event(event):
-            ...     tags = event.get("tags", [])
-            ...     print(f"Invalidating tags: {tags}")
-            >>> await cache.subscribe_invalidations(handle_event)
-        """
+        """Subscribe to tag invalidation events (blocking)."""
         target_channel = channel or self._pubsub_channel
         if not target_channel:
             return
-
         try:
             pubsub = self._client.pubsub()
             await pubsub.subscribe(target_channel)
@@ -490,33 +460,34 @@ class AsyncRedisCache:
         except Exception:
             pass
 
-    # Health / lifecycle
-    async def ping(self) -> HealthStatus:
-        """Check health.
-
-        Returns:
-            dict[str, Any]: Health payload with ``healthy``, ``latency_ms``, and ``backend``.
-        """
-        ok = False
+    # ---- Health / lifecycle ----
+    async def health(self) -> HealthStatus:
+        """Return cache health status."""
         try:
-            ok = await self._client.ping()
+            ok = bool(await self._client.ping())
         except Exception:
             ok = False
-        return {"healthy": bool(ok), "latency_ms": 0.0, "backend": "redis"}
+        return {"healthy": ok, "latency_ms": 0.0, "backend": "redis"}
 
-    async def ping_ok(self) -> bool:
-        """Return a boolean health indicator.
-
-        Returns:
-            bool: True if healthy.
-        """
-        s = await self.ping()
+    async def healthy(self) -> bool:
+        """Return ``True`` if the cache is healthy."""
+        s = await self.health()
         return bool(s.get("healthy", False))
 
+    # Deprecated aliases
+    async def ping(self) -> HealthStatus:
+        """Deprecated alias for :meth:`health`."""
+        warn_deprecated_method(name="ping", owner="AsyncRedisCache", replacement="health")
+        return await self.health()
+
+    async def ping_ok(self) -> bool:
+        """Deprecated alias for :meth:`healthy`."""
+        warn_deprecated_method(name="ping_ok", owner="AsyncRedisCache", replacement="healthy")
+        return await self.healthy()
+
     async def close(self) -> None:
-        """Close underlying client (async)."""
+        """Close the underlying client."""
         try:
-            # Try aclose() first (redis-py v5+), fall back to close() for older versions
             if hasattr(self._client, "aclose"):
                 await self._client.aclose()
             else:
@@ -525,41 +496,22 @@ class AsyncRedisCache:
             pass
 
     def get_stats(self) -> dict[str, Any] | None:
-        """Get cache statistics.
-
-        Returns:
-            Optional[dict[str, Any]]: None for base cache (no stats collected).
-                Middleware may override to return collected metrics.
-        """
+        """Return ``None``; middleware may override."""
         return None
 
-    # Async context manager
+    # ---- Async context manager ----
     async def __aenter__(self) -> AsyncRedisCache:
-        """Enter async context manager.
-
-        Returns:
-            AsyncRedisCache: This cache instance.
-        """
         return self
 
     async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
-        """Exit async context manager and close connections."""
         await self.close()
 
     @staticmethod
     def _create_single_client(config: RedisSingleConfig) -> Any:
-        """Create client for single Redis instance.
-
-        Args:
-            config (RedisSingleConfig): Single instance configuration.
-
-        Returns:
-            Any: AsyncRedisClient wrapper instance.
-        """
         try:
             from redis.asyncio import Redis
         except ImportError as e:
-            raise RuntimeError("redis.asyncio.Redis not available; install with: `pip install redis`") from e
+            raise RuntimeError("redis.asyncio is not available; install with: `pip install redis`") from e
         kwargs: dict[str, Any] = {
             "host": config.host,
             "port": int(config.port),
@@ -578,7 +530,6 @@ class AsyncRedisCache:
         if config.retry_on_timeout:
             kwargs["retry_on_timeout"] = True
 
-        # Merge any additional parameters
         for k, v in config.extra.items():
             kwargs.setdefault(k, v)
 
@@ -586,27 +537,12 @@ class AsyncRedisCache:
 
     @staticmethod
     def _create_cluster_client(config: RedisClusterConfig) -> Any:
-        """Create client for Redis Cluster.
-
-        Args:
-            config (RedisClusterConfig): Cluster configuration.
-
-        Returns:
-            Any: RedisCluster client instance.
-
-        Raises:
-            RuntimeError: If redis cluster client is not available.
-        """
         try:
             from redis.asyncio.cluster import ClusterNode, RedisCluster
         except Exception as e:  # pragma: no cover
-            raise RuntimeError("redis.asyncio not available; install with: `pip install redis`") from e
+            raise RuntimeError("redis.asyncio cluster not available; install with: `pip install redis`") from e
 
-        # Convert nodes to dict format for redis-py
         nodes = [{"host": node.host, "port": node.port} for node in config.nodes]
-
-        # Try different redis-py API versions
-        # Help type checker: ensure proper types for ClusterNode
         cluster_nodes = [ClusterNode(cast(str, n["host"]), int(cast(Any, n.get("port", 6379)))) for n in nodes]
         kwargs: dict[str, Any] = {
             "username": config.username,
@@ -632,26 +568,14 @@ class AsyncRedisCache:
         except Exception:
             pass
 
-        client = RedisCluster(startup_nodes=cluster_nodes, **kwargs)
-        return client
+        return RedisCluster(startup_nodes=cluster_nodes, **kwargs)
 
     @staticmethod
     def _create_sentinel_client(config: RedisSentinelConfig) -> Any:
-        """Create client for Redis Sentinel.
-
-        Args:
-            config (RedisSentinelConfig): Sentinel configuration.
-
-        Returns:
-            Any: Redis master client from Sentinel.
-
-        Raises:
-            RuntimeError: If redis.asyncio.sentinel is not available.
-        """
         try:
             from redis.asyncio.sentinel import Sentinel
         except Exception as e:  # pragma: no cover
-            raise RuntimeError("redis.asyncio not available; install with: `pip install redis`") from e
+            raise RuntimeError("redis.asyncio.sentinel not available; install with: `pip install redis`") from e
 
         st = 2 if config.socket_timeout is None else float(config.socket_timeout)
         sentinel = Sentinel(list(config.sentinels), socket_timeout=st, ssl=config.ssl)

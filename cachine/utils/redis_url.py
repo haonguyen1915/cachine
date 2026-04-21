@@ -336,37 +336,27 @@ def _parse_query_params(query_params: dict[str, list[str]]) -> dict[str, Any]:
 
 
 def create_cache_from_url(url: str, **kwargs: Any) -> Any:
-    """Create a cache instance from a Redis URL.
+    """Deprecated. Use :meth:`RedisCache.from_url` instead.
 
-    Args:
-        url: Redis connection URL
-        **kwargs: Additional arguments (namespace, serializer) to pass to the cache constructor
-
-    Returns:
-        Cache instance (RedisCache with appropriate configuration)
-
-    Raises:
-        RedisURLParseError: If URL format is invalid
-
-    Examples:
-        >>> from cachine.serializers import JSONSerializer
-        >>> cache = create_cache_from_url("redis://localhost:6379/0", namespace="myapp", serializer=JSONSerializer())
+    Kept as a thin forwarder for one release cycle.
     """
-    config = parse_redis_url(url)
+    import warnings as _warnings
 
-    # Merge namespace and serializer from kwargs
-    namespace = kwargs.pop("namespace", None)
-    serializer = kwargs.pop("serializer", None)
-
-    # Any remaining kwargs are warnings/errors
-    if kwargs:
-        import warnings
-
-        warnings.warn(f"Unknown arguments ignored: {list(kwargs.keys())}", stacklevel=2)
+    _warnings.warn(
+        "create_cache_from_url is deprecated since v0.2 and will be removed in v0.3; use RedisCache.from_url(url, ...) instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
     from ..backends.redis.sync import RedisCache
 
-    return RedisCache(config, namespace=namespace, serializer=serializer)
+    namespace = kwargs.pop("namespace", None)
+    serializer = kwargs.pop("serializer", None)
+
+    if kwargs:
+        _warnings.warn(f"Unknown arguments ignored: {list(kwargs.keys())}", stacklevel=2)
+
+    return RedisCache.from_url(url, namespace=namespace, serializer=serializer)
 
 
 __all__ = [

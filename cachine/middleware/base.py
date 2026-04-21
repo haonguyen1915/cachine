@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from cachine.core.types import AsyncCache, Cache, HealthStatus
+from cachine.utils._deprecations import MISSING
 
 from ..core.types import CacheLike
 
@@ -18,33 +19,32 @@ class BaseMiddleware:
     def __init__(self, cache: CacheLike) -> None:
         self._cache = cache
 
-    def __getattr__(self, item: str) -> Any:  # delegate to underlying cache
-        """Delegate attribute access to the wrapped cache.
-
-        Args:
-            item (str): Attribute name.
-
-        Returns:
-            Any: Attribute from the underlying cache.
-        """
+    def __getattr__(self, item: str) -> Any:
         return getattr(self._cache, item)
 
 
 class SyncCacheMiddleware(BaseMiddleware):
-    """Typed delegating middleware for sync caches.
-
-    Implements the Cache protocol by forwarding calls to the wrapped cache.
-    Subclass this instead of BaseMiddleware when you want static type safety.
-    """
+    """Typed delegating middleware for sync caches."""
 
     _cache: Cache
 
     # Basic ops
-    def get(self, key: str, default: Any = None, *, serializer: Any = None) -> Any:
-        return self._cache.get(key, default=default, serializer=serializer)
+    def get(self, key: str, default: Any = None, *, serializer: Any = MISSING) -> Any:
+        if serializer is MISSING:
+            return self._cache.get(key, default=default)
+        return self._cache.get(key, default=default, serializer=serializer)  # type: ignore[call-arg]
 
-    def set(self, key: str, value: Any, *, ttl: int | timedelta | None = None, serializer: Any = None) -> None:
-        return self._cache.set(key, value, ttl=ttl, serializer=serializer)
+    def set(
+        self,
+        key: str,
+        value: Any,
+        *,
+        ttl: int | timedelta | None = None,
+        serializer: Any = MISSING,
+    ) -> None:
+        if serializer is MISSING:
+            return self._cache.set(key, value, ttl=ttl)
+        return self._cache.set(key, value, ttl=ttl, serializer=serializer)  # type: ignore[call-arg]
 
     def delete(self, key: str) -> bool:
         return self._cache.delete(key)
@@ -52,11 +52,18 @@ class SyncCacheMiddleware(BaseMiddleware):
     def exists(self, key: str) -> bool:
         return self._cache.exists(key)
 
-    def clear(self, *, dangerously_clear_all: bool = False) -> None:
-        return self._cache.clear(dangerously_clear_all=dangerously_clear_all)
+    def clear(self, *, all: bool = False) -> None:
+        return self._cache.clear(all=all)
 
     # Enrichment
-    def get_or_set(self, key: str, factory: Any, *, ttl: int | timedelta | None = None, jitter: int | None = None) -> Any:
+    def get_or_set(
+        self,
+        key: str,
+        factory: Any,
+        *,
+        ttl: int | timedelta | None = None,
+        jitter: int | None = None,
+    ) -> Any:
         return self._cache.get_or_set(key, factory, ttl=ttl, jitter=jitter)
 
     # TTL management
@@ -76,14 +83,14 @@ class SyncCacheMiddleware(BaseMiddleware):
         return self._cache.persist(key)
 
     # Counters
-    def incr(self, key: str, *, delta: int = 1, ttl_on_create: int | timedelta | None = None) -> int:
-        return self._cache.incr(key, delta=delta, ttl_on_create=ttl_on_create)
+    def incr(self, key: str, *, delta: int = 1, ttl_if_new: int | timedelta | None = None) -> int:
+        return self._cache.incr(key, delta=delta, ttl_if_new=ttl_if_new)
 
     def decr(self, key: str, *, delta: int = 1) -> int:
         return self._cache.decr(key, delta=delta)
 
     # Tags
-    def add_tags(self, key: str, tags: list[str], ttl: int | timedelta | None = None) -> None:
+    def add_tags(self, key: str, tags: list[str], *, ttl: int | timedelta | None = None) -> None:
         add_tags_fn = getattr(self._cache, "add_tags", None)
         if add_tags_fn is not None:
             add_tags_fn(key, tags, ttl=ttl)
@@ -93,11 +100,11 @@ class SyncCacheMiddleware(BaseMiddleware):
         return int(inv(tags)) if inv is not None else 0
 
     # Health / lifecycle
-    def ping(self) -> HealthStatus:
-        return self._cache.ping()
+    def health(self) -> HealthStatus:
+        return self._cache.health()
 
-    def ping_ok(self) -> bool:
-        return self._cache.ping_ok()
+    def healthy(self) -> bool:
+        return self._cache.healthy()
 
     def close(self) -> None:
         return self._cache.close()
@@ -115,20 +122,27 @@ class SyncCacheMiddleware(BaseMiddleware):
 
 
 class AsyncCacheMiddleware(BaseMiddleware):
-    """Typed delegating middleware for async caches.
-
-    Implements the AsyncCache protocol by forwarding calls to the wrapped cache.
-    Subclass this instead of BaseMiddleware when you want static type safety.
-    """
+    """Typed delegating middleware for async caches."""
 
     _cache: AsyncCache
 
     # Basic ops
-    async def get(self, key: str, default: Any = None, *, serializer: Any = None) -> Any:
-        return await self._cache.get(key, default=default, serializer=serializer)
+    async def get(self, key: str, default: Any = None, *, serializer: Any = MISSING) -> Any:
+        if serializer is MISSING:
+            return await self._cache.get(key, default=default)
+        return await self._cache.get(key, default=default, serializer=serializer)  # type: ignore[call-arg]
 
-    async def set(self, key: str, value: Any, *, ttl: int | timedelta | None = None, serializer: Any = None) -> None:
-        return await self._cache.set(key, value, ttl=ttl, serializer=serializer)
+    async def set(
+        self,
+        key: str,
+        value: Any,
+        *,
+        ttl: int | timedelta | None = None,
+        serializer: Any = MISSING,
+    ) -> None:
+        if serializer is MISSING:
+            return await self._cache.set(key, value, ttl=ttl)
+        return await self._cache.set(key, value, ttl=ttl, serializer=serializer)  # type: ignore[call-arg]
 
     async def delete(self, key: str) -> bool:
         return await self._cache.delete(key)
@@ -136,8 +150,8 @@ class AsyncCacheMiddleware(BaseMiddleware):
     async def exists(self, key: str) -> bool:
         return await self._cache.exists(key)
 
-    async def clear(self, *, dangerously_clear_all: bool = False) -> None:
-        return await self._cache.clear(dangerously_clear_all=dangerously_clear_all)
+    async def clear(self, *, all: bool = False) -> None:
+        return await self._cache.clear(all=all)
 
     # Enrichment
     async def get_or_set(
@@ -167,14 +181,14 @@ class AsyncCacheMiddleware(BaseMiddleware):
         return await self._cache.persist(key)
 
     # Counters
-    async def incr(self, key: str, *, delta: int = 1, ttl_on_create: int | timedelta | None = None) -> int:
-        return await self._cache.incr(key, delta=delta, ttl_on_create=ttl_on_create)
+    async def incr(self, key: str, *, delta: int = 1, ttl_if_new: int | timedelta | None = None) -> int:
+        return await self._cache.incr(key, delta=delta, ttl_if_new=ttl_if_new)
 
     async def decr(self, key: str, *, delta: int = 1) -> int:
         return await self._cache.decr(key, delta=delta)
 
     # Tags
-    async def add_tags(self, key: str, tags: list[str], ttl: int | timedelta | None = None) -> None:
+    async def add_tags(self, key: str, tags: list[str], *, ttl: int | timedelta | None = None) -> None:
         import inspect
 
         add_tags_fn = getattr(self._cache, "add_tags", None)
@@ -184,25 +198,22 @@ class AsyncCacheMiddleware(BaseMiddleware):
                 await maybe
 
     async def invalidate_tags(self, tags: list[str]) -> int:
+        import inspect
+
         inv = getattr(self._cache, "invalidate_tags", None)
         if inv is None:
             return 0
         res = inv(tags)
-        try:
-            import inspect
-
-            if inspect.isawaitable(res):
-                return int(await res)
-        except Exception:
-            pass
+        if inspect.isawaitable(res):
+            return int(await res)
         return int(res)
 
     # Health / lifecycle
-    async def ping(self) -> HealthStatus:
-        return await self._cache.ping()
+    async def health(self) -> HealthStatus:
+        return await self._cache.health()
 
-    async def ping_ok(self) -> bool:
-        return await self._cache.ping_ok()
+    async def healthy(self) -> bool:
+        return await self._cache.healthy()
 
     async def close(self) -> None:
         return await self._cache.close()

@@ -1,6 +1,9 @@
+"""The @cached decorator works for sync and async functions alike."""
+
 import asyncio
 
-from cachine import AsyncRedisCache, InMemoryCache, cached
+from cachine import AsyncRedisCache, InMemoryCache
+from cachine.decorators import cached
 
 
 @cached(InMemoryCache(), ttl=60)

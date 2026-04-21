@@ -68,8 +68,8 @@ def test_sync_redis_clear_swallows_connection_errors() -> None:
     cache.clear(dangerously_clear_all=True)  # Should not raise
 
 
-def test_sync_redis_ping_reports_unhealthy_on_connection_failure() -> None:
-    """Test that ping returns unhealthy status when Redis is unreachable."""
+def test_sync_redis_health_reports_unhealthy_on_connection_failure() -> None:
+    """Test that health() returns unhealthy when Redis is unreachable."""
     config = RedisSingleConfig(
         host="invalid.host",
         port=6379,
@@ -80,13 +80,12 @@ def test_sync_redis_ping_reports_unhealthy_on_connection_failure() -> None:
 
     cache = RedisCache(config, namespace="ut")
 
-    # ping should return unhealthy
-    health = cache.ping()
-    assert health["healthy"] is True  # Note: sync ping is a stub and always returns True
+    # health should report unhealthy because the server is unreachable
+    status = cache.health()
+    assert status["healthy"] is False
 
-    # ping_ok should also work
-    result = cache.ping_ok()
-    assert isinstance(result, bool)
+    # healthy() mirrors health()["healthy"]
+    assert cache.healthy() is False
 
 
 def test_sync_fail_open_middleware_handles_connection_failure() -> None:
