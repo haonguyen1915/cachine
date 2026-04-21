@@ -57,3 +57,13 @@ format:
 test:
 	@echo "🚀 Running tests with pytest"
 	poetry run pytest tests
+
+.PHONY: clean
+clean:
+	@echo "🧹 Removing Python bytecode and tool caches"
+	find . -type d -name '__pycache__' -prune -exec rm -rf {} +
+	find . -type f \( -name '*.pyc' -o -name '*.pyo' -o -name '*.pyd' \) -delete
+	rm -rf .pytest_cache .ruff_cache .mypy_cache .pylint_cache .cache
+	rm -rf build dist *.egg-info
+	find . -type f \( -name '*.db' -o -name '*.db-journal' -o -name '*.db-wal' -o -name '*.db-shm' \) -delete
+	@echo "🟢 Clean done"
