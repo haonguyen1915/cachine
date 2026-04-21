@@ -1,3 +1,43 @@
+## [0.1.2] - 2026-04-21
+
+### Release Notes
+
+Version 0.1.2 introduces significant enhancements to the public API and caching mechanisms.
+
+### What's Changed
+- Redesigned the public API for improved clarity and discoverability, making it easier for developers to integrate.
+- Added SQLiteCache and AsyncSQLiteCache backends to enhance caching options and performance.
+- Improved overall cache initialization process, streamlining setup for users.
+
+### Breaking Changes
+- The redesign of the public API may require users to update their integration code.
+
+### Features
+
+- feat: add SQLiteCache and AsyncSQLiteCache backends (78e3c94)
+
+### Documentation
+
+- docs: update README for CacheBuilder usage (3a57980)
+
+### Chores
+
+- chore: update gitignore (ee628e8)
+- chore: remove pycache (7f93ded)
+- chore: add init file (fe80686)
+- chore: update git ignore (db98a1c)
+- chore: refactor cache initialization in README (e0b70af)
+- chore: Update document (2a7c390)
+- chore: remove dist (129092e)
+
+### Other
+
+- feat!: redesign public API for clarity and discoverability (d9b2b2c)
+
+**Contributors:** @haonguyen
+
+**Compare changes:** [v0.1.1-rc.1...v0.1.2](https://github.com/haonguyen1915/cachine.git/-/compare/v0.1.1-rc.1...v0.1.2)
+
 ## v0.1.1-rc.1 – 2025-11-19
 
 ### Release Notes

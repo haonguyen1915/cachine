@@ -1,6 +1,6 @@
 [project]
 name = "cachine"
-version = "0.1.1-rc.1"
+version = "0.1.2"
 description = "A powerful sync/async caching library for Python with tag-based invalidation and Redis backend."
 authors = [
     { name = "haonguyen", email = "vanhao1915@gmail.com" }
